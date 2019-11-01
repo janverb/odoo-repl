@@ -16,6 +16,10 @@ def main():
                         help="Database name")
     parser.add_argument('-c', '--command', type=str, default=None,
                         help="Initial command to execute")
+    parser.add_argument('--ipython', action='store_true', default=False,
+                        help="Use IPython instead of the default REPL")
+    parser.add_argument('--ipython-args', type=str, default=None,
+                        help="Extra flags to pass to IPython")
     parser.add_argument('directory', type=str, default='.', nargs='?',
                         help="Buildout directory to use")
     args = parser.parse_args()
@@ -51,6 +55,14 @@ odoo_repl.enable()
 
     if args.command is not None:
         cmd += args.command
+
+    if args.ipython:
+        interp = 'ipython' if py2 else 'ipython3'
+        argv = [interp, '--no-banner', '-i']
+        if args.ipython_args:
+            argv.extend(args.ipython_args.split())
+        argv.extend(['--', executable, '-c', cmd])
+        os.execvp(interp, argv)
 
     os.execv(executable, [executable, '-i', '-c', cmd])
 

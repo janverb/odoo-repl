@@ -31,6 +31,12 @@ def enable():
         readline_init(os.path.expanduser('~/.python2_history'))
     sys.displayhook = displayhook
 
+    try:
+        from openerp.models import BaseModel
+    except ImportError:
+        from odoo.models import BaseModel
+    BaseModel._repr_pretty_ = lambda s, p, c: p.text(odoo_repr(s))
+
     __main__.env = EnvAccess(__main__.session)
     try:
         __main__.res = __main__.env.res
@@ -44,6 +50,8 @@ def enable():
 
     __main__.browse = partial(browse, __main__.session)
     __main__.sql = partial(sql, __main__.session)
+    __main__.find_data = partial(find_data, __main__.session)
+    __main__.resolve_data = partial(resolve_data, __main__.session)
 
 
 def readline_init(history=None):
@@ -52,8 +60,7 @@ def readline_init(history=None):
     import readline
     import rlcompleter  # noqa: F401
 
-    if readline.get_completer() is None:
-        readline.parse_and_bind('tab: complete')
+    readline.parse_and_bind('tab: complete')
     if readline.get_current_history_length() == 0 and history is not None:
         try:
             readline.read_history_file(history)
@@ -71,17 +78,21 @@ purple = '\x1b[1m\x1b[35m{}\x1b[30m\x1b(B\x1b[m'.format
 cyan = '\x1b[1m\x1b[36m{}\x1b[30m\x1b(B\x1b[m'.format
 
 
-def color_repr(obj):
+def color_repr(obj, field_type):
     """Return a color-coded representation of an object."""
-    if obj is False:
+    if obj is False and field_type != 'Boolean' or obj is None:
         return red(repr(obj))
-    elif obj is True:
+    elif isinstance(obj, bool):
         return green(repr(obj))
     elif _is_record(obj):
+        if len(obj._ids) == 0:
+            return red("{}[]".format(obj._name))
         if len(obj._ids) > 10:
             return cyan("{} \N{multiplication sign} {}".format(
                 obj._name, len(obj._ids)
             ))
+        if obj._name == 'res.users':
+            return ', '.join(cyan(user.login) for user in obj)
         return cyan("{}{!r}".format(obj._name, list(obj._ids)))
     elif isinstance(obj, (bytes, unicode)):
         if len(obj) > 120:
@@ -94,25 +105,27 @@ def color_repr(obj):
 
 
 field_colors = {
-    'One2many': cyan,
-    'Many2one': cyan,
-    'Many2many': cyan,
-    'Char': blue,
-    'Text': blue,
-    'Datetime': blue,
-    'Date': blue,
-    'Integer': purple,
-    'Float': purple,
-    'Id': purple,
-    'Boolean': green,
+    'one2many': cyan,
+    'many2one': cyan,
+    'many2many': cyan,
+    'char': blue,
+    'text': blue,
+    'datetime': blue,
+    'date': blue,
+    'integer': purple,
+    'float': purple,
+    'id': purple,
+    'boolean': green,
 }
 
 
 def field_color(field):
     """Color a field type, if appropriate."""
-    if field in field_colors:
-        return field_colors[field](field)
-    return field
+    if field.relational:
+        return "{}: {}".format(green(field.type), cyan(field.comodel_name))
+    if field.type in field_colors:
+        return field_colors[field.type](field.type)
+    return green(field.type)
 
 
 def _unwrap(obj):
@@ -139,7 +152,8 @@ def odoo_repr(obj):
             parts.append("{}: ".format(green(field))
                          # Like str.ljust, but not confused about colors
                          + (max_len - len(field)) * ' '
-                         + field_color(obj._fields[field].__class__.__name__))
+                         + field_color(obj._fields[field])
+                         + " ({})".format(obj._fields[field].string))
         return '\n'.join(parts)
 
     header = "{}[{!r}]".format(obj._name, obj.id)
@@ -150,7 +164,8 @@ def odoo_repr(obj):
     for field in fields:
         parts.append("{}: ".format(green(field))
                      + (max_len - len(field)) * ' '
-                     + color_repr(getattr(obj, field)))
+                     + color_repr(getattr(obj, field),
+                                  obj._fields[field].__class__.__name__))
     return '\n'.join(parts)
 
 
@@ -214,6 +229,18 @@ class EnvAccess(object):
             return self._session.env[ind]
         return self._real.browse(ind)
 
+    def _ipython_key_completions_(self):
+        if not self._path:
+            return self._session.env.registry.keys()
+        if self._real is None:
+            return []
+        # IPython doesn't seem to want to display int keys, at least in the
+        # versions I tested it, but this can't hurt
+        return sql(
+            self._session,
+            'SELECT id FROM {}'.format(self._session.env[self._path]._table),
+        )
+
     def _search_(self, **kwargs):
         return self._real.search([(k, '=', getattr(v, 'id', v))
                                   for k, v in kwargs.items()])
@@ -225,13 +252,18 @@ class EnvAccess(object):
             [('model', '=', self._path)]
         )
 
+    def _repr_pretty_(self, printer, cycle):
+        if self._real is not None:
+            printer.text(odoo_repr(self._real))
+        printer.text(repr(self))
 
-def sql(session, query):
+
+def sql(session, query, *args):
     """Execute a SQL query and try to make the result nicer.
 
     Optimized for ease of use, at the cost of reliability.
     """
-    session.cr.execute(query)
+    session.cr.execute(query, *args)
     result = session.cr.fetchall()
     if result and len(result[0]) == 1:
         result = [row[0] for row in result]
@@ -263,7 +295,14 @@ class UserBrowser(object):
         self._session = session
 
     def __getattr__(self, attr):
-        return self._session.env['res.users'].search([('login', '=', attr)])
+        # IPython does completions in a separate thread.
+        # Odoo doesn't like that very much. So completions on attributes of
+        # u fail.
+        # We can solve that some of the time by remembering things we've
+        # completed before.
+        user = self._session.env['res.users'].search([('login', '=', attr)])
+        setattr(self, attr, user)
+        return user
 
     def __getitem__(self, ind):
         return self._session.env['res.users'].browse(ind)
@@ -297,12 +336,17 @@ class DataBrowser(object):
         self._cache = None
 
     def __getattr__(self, attr):
-        return resolve_data(self._session, attr)
+        data = resolve_data(self._session, attr)
+        setattr(self, attr, data)
+        return data
 
     def __dir__(self):
         if self._cache is None:
             self._cache = sql(self._session, 'SELECT name FROM ir_model_data')
         return self._cache
+
+    __getitem__ = __getattr__
+    _ipython_key_completions_ = __dir__
 
 
 def _is_record(obj):
