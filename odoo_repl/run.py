@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import argparse
+import shlex
 import os
 import sys
 
@@ -60,7 +61,7 @@ odoo_repl.enable()
         interp = 'ipython' if py2 else 'ipython3'
         argv = [interp, '--no-banner', '-i']
         if args.ipython_args:
-            argv.extend(args.ipython_args.split())
+            argv.extend(shlex.split(args.ipython_args))
         argv.extend(['--', executable, '-c', cmd])
         os.execvp(interp, argv)
 

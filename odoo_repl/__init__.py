@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import os
+import random
 import sys
 
 try:
@@ -27,6 +28,11 @@ def enable():
     """Enable all the bells and whistles."""
     import __main__
 
+    try:
+        import __builtin__ as builtins
+    except ImportError:
+        import builtins
+
     if sys.version_info < (3, 0):
         readline_init(os.path.expanduser('~/.python2_history'))
     sys.displayhook = displayhook
@@ -37,14 +43,6 @@ def enable():
         from odoo.models import BaseModel
     BaseModel._repr_pretty_ = lambda s, p, c: p.text(odoo_repr(s))
 
-    __main__.env = EnvAccess(__main__.session)
-    try:
-        __main__.res = __main__.env.res
-        __main__.hr = __main__.env.hr
-        __main__.ir = __main__.env.ir
-    except (NameError, AttributeError):
-        pass
-
     __main__.u = UserBrowser(__main__.session)
     __main__.data = DataBrowser(__main__.session)
 
@@ -52,6 +50,11 @@ def enable():
     __main__.sql = partial(sql, __main__.session)
     __main__.find_data = partial(find_data, __main__.session)
     __main__.resolve_data = partial(resolve_data, __main__.session)
+
+    env = __main__.env = EnvAccess(__main__.session)
+    for part in env._base_parts():
+        if not hasattr(__main__, part) and not hasattr(builtins, part):
+            setattr(__main__, part, getattr(env, part))
 
 
 def readline_init(history=None):
@@ -78,8 +81,13 @@ purple = '\x1b[1m\x1b[35m{}\x1b[30m\x1b(B\x1b[m'.format
 cyan = '\x1b[1m\x1b[36m{}\x1b[30m\x1b(B\x1b[m'.format
 
 
-def color_repr(obj, field_type):
+def color_repr(owner, field_name):
     """Return a color-coded representation of an object."""
+    try:
+        obj = getattr(owner, field_name)
+    except Exception as e:
+        return red(str(e))
+    field_type = owner._fields[field_name].__class__.__name__
     if obj is False and field_type != 'Boolean' or obj is None:
         return red(repr(obj))
     elif isinstance(obj, bool):
@@ -161,12 +169,19 @@ def odoo_repr(obj):
         header += " ({})".format(obj.env.user.login)
     parts.append(yellow(header))
 
+    if not obj.exists():
+        parts.append(red("Missing"))
+        return '\n'.join(parts)
+
     for field in fields:
         parts.append("{}: ".format(green(field))
                      + (max_len - len(field)) * ' '
-                     + color_repr(getattr(obj, field),
-                                  obj._fields[field].__class__.__name__))
+                     + color_repr(obj, field))
     return '\n'.join(parts)
+
+
+def oprint(obj):
+    print(odoo_repr(obj))
 
 
 if sys.version_info < (3, 3):
@@ -213,11 +228,14 @@ class EnvAccess(object):
 
     def __dir__(self):
         if not self._path:
-            return list({mod.split('.', 1)[0]
-                         for mod in self._session.env.registry})
+            return self._base_parts()
         return dir(self._real) + list({mod[len(self._path)+1:].split('.', 1)[0]
                                        for mod in self._session.env.registry
                                        if mod.startswith(self._path + '.')})
+
+    def _base_parts(self):
+        return list({mod.split('.', 1)[0]
+                     for mod in self._session.env.registry})
 
     def __repr__(self):
         if self._real is not None:
@@ -226,8 +244,11 @@ class EnvAccess(object):
 
     def __getitem__(self, ind):
         if not self._path:
-            return self._session.env[ind]
-        return self._real.browse(ind)
+            return EnvAccess(self._session, ind, self._session.env[ind])
+        obj = self._real.browse(ind)
+        if not obj.exists():
+            raise ValueError("Record does not exist")
+        return obj
 
     def _ipython_key_completions_(self):
         if not self._path:
@@ -236,6 +257,9 @@ class EnvAccess(object):
             return []
         # IPython doesn't seem to want to display int keys, at least in the
         # versions I tested it, but this can't hurt
+        return self._all_ids_()
+
+    def _all_ids_(self):
         return sql(
             self._session,
             'SELECT id FROM {}'.format(self._session.env[self._path]._table),
@@ -252,10 +276,18 @@ class EnvAccess(object):
             [('model', '=', self._path)]
         )
 
+    def _shuf_(self, n=1):
+        """Return a random record, or multiple."""
+        return self._real.browse(random.sample(self._all_ids_(), n))
+
+    def _all_(self):
+        return self._search_()
+
     def _repr_pretty_(self, printer, cycle):
         if self._real is not None:
             printer.text(odoo_repr(self._real))
-        printer.text(repr(self))
+        else:
+            printer.text(repr(self))
 
 
 def sql(session, query, *args):
