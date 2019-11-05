@@ -19,8 +19,8 @@ def main():
                         help="Initial command to execute")
     parser.add_argument('--ipython', action='store_true', default=False,
                         help="Use IPython instead of the default REPL")
-    parser.add_argument('--ipython-args', type=str, default=None,
-                        help="Extra flags to pass to IPython")
+    parser.add_argument('-a', '--args', type=str, default=None,
+                        help="Extra flags to pass to the interpreter")
     parser.add_argument('directory', type=str, default='.', nargs='?',
                         help="Buildout directory to use")
     args = parser.parse_args()
@@ -32,7 +32,10 @@ def main():
         sys.exit(1)
 
     with open(executable) as f:
-        py2 = 'python2' in f.readline()
+        line = f.readline().strip()
+        assert line.startswith('#!')
+        interp = line[2:].strip()
+        py2 = 'python2' in interp
 
     cmd = ('session.open(db={!r})'.format(args.database)
            if args.database else 'session.open()')
@@ -45,6 +48,9 @@ odoo_repl.enable()
 """.format(os.path.dirname(os.path.dirname(odoo_repl.__file__)))
 
     if 'PYTHONSTARTUP' in os.environ:
+        # $PYTHONSTARTUP isn't read when executing a file, but if you have one
+        # then you probably want to use it when running this script, so load
+        # it manually
         if py2:
             cmd += """with open({!r}) as f:
     exec f.read()
@@ -57,15 +63,18 @@ odoo_repl.enable()
     if args.command is not None:
         cmd += args.command
 
+    # python_odoo has a -i flag for an interactive mode, but that's not great
+    # It doesn't enable Python 3's readline enhancements, for example
+    # So use Python's own -i flag instead
     if args.ipython:
         interp = 'ipython' if py2 else 'ipython3'
         argv = [interp, '--no-banner', '-i']
-        if args.ipython_args:
-            argv.extend(shlex.split(args.ipython_args))
-        argv.extend(['--', executable, '-c', cmd])
-        os.execvp(interp, argv)
-
-    os.execv(executable, [executable, '-i', '-c', cmd])
+    else:
+        argv = [interp, '-i']
+    if args.args:
+        argv.extend(shlex.split(args.args))
+    argv.extend(['--', executable, '-c', cmd])
+    os.execvp(interp, argv)
 
 
 if __name__ == '__main__':

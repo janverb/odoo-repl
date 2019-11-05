@@ -17,6 +17,7 @@ try:
 except ImportError:
     import urllib.parse as urlparse
 
+from datetime import datetime
 from functools import partial
 from pprint import pprint
 
@@ -87,10 +88,12 @@ def color_repr(owner, field_name):
         obj = getattr(owner, field_name)
     except Exception as e:
         return red(str(e))
-    field_type = owner._fields[field_name].__class__.__name__
-    if obj is False and field_type != 'Boolean' or obj is None:
+    field_type = owner._fields[field_name].type
+    if obj is False and field_type != 'boolean' or obj is None:
         return red(repr(obj))
     elif isinstance(obj, bool):
+        # False shows up as green if it's a Boolean, and red if it's a
+        # default value, so red values always mean "missing"
         return green(repr(obj))
     elif _is_record(obj):
         if len(obj._ids) == 0:
@@ -106,6 +109,9 @@ def color_repr(owner, field_name):
         if len(obj) > 120:
             return blue(repr(obj)[:120] + '...')
         return blue(repr(obj))
+    elif isinstance(obj, datetime):
+        # Blue for consistency with versions where they're strings
+        return blue(str(obj))
     elif isinstance(obj, (int, float)):
         return purple(repr(obj))
     else:
@@ -245,10 +251,21 @@ class EnvAccess(object):
     def __getitem__(self, ind):
         if not self._path:
             return EnvAccess(self._session, ind, self._session.env[ind])
-        obj = self._real.browse(ind)
-        if not obj.exists():
+        if self._real is None:
+            raise TypeError("{!r} is not a model".format(self._path))
+        # Odoo doesn't mind if you try to browse an id that doesn't exist
+        # We do mind and want to throw an exception as soon as possible
+        # There's a .exists() method for that
+        # But in Odoo 8 a non-existent record can end up in the cache and then
+        # some fields mysteriously break
+        # So to avoid that, check before browsing it
+        if not sql(
+                self._session,
+                'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
+                [(ind,)]
+        ):
             raise ValueError("Record does not exist")
-        return obj
+        return self._real.browse(ind)
 
     def _ipython_key_completions_(self):
         if not self._path:
