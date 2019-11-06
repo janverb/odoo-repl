@@ -25,7 +25,7 @@ if sys.version_info >= (3, 0):
     unicode = str
 
 
-def enable():
+def enable(session, color=True):
     """Enable all the bells and whistles."""
     import __main__
 
@@ -44,18 +44,27 @@ def enable():
         from odoo.models import BaseModel
     BaseModel._repr_pretty_ = lambda s, p, c: p.text(odoo_repr(s))
 
-    __main__.u = UserBrowser(__main__.session)
-    __main__.data = DataBrowser(__main__.session)
+    __main__.u = UserBrowser(session)
+    __main__.data = DataBrowser(session)
 
-    __main__.browse = partial(browse, __main__.session)
-    __main__.sql = partial(sql, __main__.session)
-    __main__.find_data = partial(find_data, __main__.session)
-    __main__.resolve_data = partial(resolve_data, __main__.session)
+    __main__.browse = partial(browse, session)
+    __main__.sql = partial(sql, session)
+    __main__.find_data = partial(find_data, session)
+    __main__.resolve_data = partial(resolve_data, session)
+    __main__.disable_color = disable_color
 
-    env = __main__.env = EnvAccess(__main__.session)
+    env = __main__.env = EnvAccess(session)
     for part in env._base_parts():
         if not hasattr(__main__, part) and not hasattr(builtins, part):
             setattr(__main__, part, getattr(env, part))
+
+    if not color:
+        disable_color()
+
+
+def disable_color():
+    global red, green, yellow, blue, purple, cyan
+    red = green = yellow = blue = purple = cyan = lambda s: s
 
 
 def readline_init(history=None):
@@ -124,6 +133,7 @@ field_colors = {
     'many2many': cyan,
     'char': blue,
     'text': blue,
+    'binary': blue,
     'datetime': blue,
     'date': blue,
     'integer': purple,
@@ -259,12 +269,18 @@ class EnvAccess(object):
         # But in Odoo 8 a non-existent record can end up in the cache and then
         # some fields mysteriously break
         # So to avoid that, check before browsing it
-        if not sql(
-                self._session,
-                'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
-                [(ind,)]
-        ):
-            raise ValueError("Record does not exist")
+        if not isinstance(ind, (tuple, list)):
+            ind = (ind,)
+        real_ind = set(sql(
+            self._session,
+            'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
+            [ind]
+        ))
+        if real_ind != set(ind):
+            missing = set(ind) - real_ind
+            if len(missing) == 1:
+                raise ValueError("Record {} does not exist".format(*missing))
+            raise ValueError("Records {} do not exist".format(', '.join(map(str, missing))))
         return self._real.browse(ind)
 
     def _ipython_key_completions_(self):
@@ -316,8 +332,6 @@ def sql(session, query, *args):
     result = session.cr.fetchall()
     if result and len(result[0]) == 1:
         result = [row[0] for row in result]
-    if len(result) == 1:
-        result = result[0]
     return result
 
 
@@ -350,6 +364,7 @@ class UserBrowser(object):
         # We can solve that some of the time by remembering things we've
         # completed before.
         user = self._session.env['res.users'].search([('login', '=', attr)])
+        user.ensure_one()
         setattr(self, attr, user)
         return user
 

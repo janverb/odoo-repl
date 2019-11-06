@@ -21,9 +21,15 @@ def main():
                         help="Use IPython instead of the default REPL")
     parser.add_argument('-a', '--args', type=str, default=None,
                         help="Extra flags to pass to the interpreter")
+    parser.add_argument('--no-color', action='store_true',
+                        help="Disable colored output")
     parser.add_argument('directory', type=str, default='.', nargs='?',
                         help="Buildout directory to use")
     args = parser.parse_args()
+
+    if not os.path.isdir(args.directory):
+        print("Directory {!r} does not exist".format(args.directory))
+        sys.exit(1)
 
     executable = os.path.join(args.directory, 'bin/python_odoo')
 
@@ -37,15 +43,18 @@ def main():
         interp = line[2:].strip()
         py2 = 'python2' in interp
 
-    cmd = ('session.open(db={!r})'.format(args.database)
-           if args.database else 'session.open()')
-    cmd += """
+    cmd = """
+session.open(db={!r})
 import sys
 sys.path.append({!r})
 import odoo_repl
 sys.path.pop()
-odoo_repl.enable()
-""".format(os.path.dirname(os.path.dirname(odoo_repl.__file__)))
+odoo_repl.enable(session, color={!r})
+""".format(
+    args.database,
+    os.path.dirname(os.path.dirname(odoo_repl.__file__)),  # Might be fragile
+    not args.no_color,
+)
 
     if 'PYTHONSTARTUP' in os.environ:
         # $PYTHONSTARTUP isn't read when executing a file, but if you have one
@@ -67,7 +76,12 @@ odoo_repl.enable()
     # It doesn't enable Python 3's readline enhancements, for example
     # So use Python's own -i flag instead
     if args.ipython:
+        original_interp = interp
         interp = 'ipython' if py2 else 'ipython3'
+        # Detect IPython if it's installed in the same virtualenv as Odoo
+        maybe_interp = os.path.join(os.path.dirname(original_interp), interp)
+        if os.path.isfile(maybe_interp):
+            interp = maybe_interp
         argv = [interp, '--no-banner', '-i']
     else:
         argv = [interp, '-i']
