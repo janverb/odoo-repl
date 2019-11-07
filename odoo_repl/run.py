@@ -19,6 +19,8 @@ def main():
                         help="Initial command to execute")
     parser.add_argument('--ipython', action='store_true', default=False,
                         help="Use IPython instead of the default REPL")
+    parser.add_argument('--interpreter', type=str, default=None,
+                        help="Specify a different interpreter to use")
     parser.add_argument('-a', '--args', type=str, default=None,
                         help="Extra flags to pass to the interpreter")
     parser.add_argument('--no-color', action='store_true',
@@ -26,6 +28,10 @@ def main():
     parser.add_argument('directory', type=str, default='.', nargs='?',
                         help="Buildout directory to use")
     args = parser.parse_args()
+
+    if args.ipython and args.interpreter:
+        print("--ipython and --interpreter can't be used together")
+        sys.exit(1)
 
     if not os.path.isdir(args.directory):
         print("Directory {!r} does not exist".format(args.directory))
@@ -43,20 +49,23 @@ def main():
         interp = line[2:].strip()
         py2 = 'python2' in interp
 
+    if args.interpreter:
+        interp = args.interpreter
+
     cmd = """
 session.open(db={!r})
 import sys
 sys.path.append({!r})
 import odoo_repl
 sys.path.pop()
-odoo_repl.enable(session, color={!r})
+odoo_repl.enable(session, __name__, color={!r})
 """.format(
     args.database,
     os.path.dirname(os.path.dirname(odoo_repl.__file__)),  # Might be fragile
     not args.no_color,
 )
 
-    if 'PYTHONSTARTUP' in os.environ:
+    if os.environ.get('PYTHONSTARTUP'):
         # $PYTHONSTARTUP isn't read when executing a file, but if you have one
         # then you probably want to use it when running this script, so load
         # it manually

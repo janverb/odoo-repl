@@ -25,9 +25,10 @@ if sys.version_info >= (3, 0):
     unicode = str
 
 
-def enable(session, color=True):
+def enable(session, module_name='__main__', color=True):
     """Enable all the bells and whistles."""
-    import __main__
+    import importlib
+    __main__ = importlib.import_module(module_name)
 
     try:
         import __builtin__ as builtins
