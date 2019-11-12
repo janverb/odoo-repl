@@ -52,8 +52,22 @@ def main():
     if args.interpreter:
         interp = args.interpreter
 
-    cmd = """
-session.open(db={!r})
+    if os.environ.get('PYTHONSTARTUP'):
+        # $PYTHONSTARTUP isn't read when executing a file, but if you have one
+        # then you probably want to use it when running this script, so load
+        # it manually
+        if py2:
+            cmd = """with open({!r}) as f:
+    exec f.read()
+""".format(os.environ['PYTHONSTARTUP'])
+        else:
+            cmd = """with open({!r}) as f:
+    exec(f.read(), globals(), locals())
+""".format(os.environ['PYTHONSTARTUP'])
+    else:
+        cmd = ""
+
+    cmd += """session.open(db={!r})
 import sys
 sys.path.append({!r})
 import odoo_repl
@@ -64,19 +78,6 @@ odoo_repl.enable(session, __name__, color={!r})
     os.path.dirname(os.path.dirname(odoo_repl.__file__)),  # Might be fragile
     not args.no_color,
 )
-
-    if os.environ.get('PYTHONSTARTUP'):
-        # $PYTHONSTARTUP isn't read when executing a file, but if you have one
-        # then you probably want to use it when running this script, so load
-        # it manually
-        if py2:
-            cmd += """with open({!r}) as f:
-    exec f.read()
-""".format(os.environ['PYTHONSTARTUP'])
-        else:
-            cmd += """with open({!r}) as f:
-    exec(f.read(), globals(), locals())
-""".format(os.environ['PYTHONSTARTUP'])
 
     if args.command is not None:
         cmd += args.command

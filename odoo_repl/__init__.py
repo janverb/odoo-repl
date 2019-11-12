@@ -241,11 +241,14 @@ class EnvAccess(object):
             return EnvAccess(self._session, new, self._session.env[new])
         if any(m.startswith(new + '.') for m in self._session.env.registry):
             return EnvAccess(self._session, new)
+        if not self._path:
+            if hasattr(self._session.env, attr):
+                return getattr(self._session.env, attr)
         raise AttributeError
 
     def __dir__(self):
         if not self._path:
-            return self._base_parts()
+            return self._base_parts() + dir(self._session.env)
         return dir(self._real) + list({mod[len(self._path)+1:].split('.', 1)[0]
                                        for mod in self._session.env.registry
                                        if mod.startswith(self._path + '.')})
