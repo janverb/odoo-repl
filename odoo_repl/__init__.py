@@ -43,7 +43,7 @@ def enable(session, module_name='__main__', color=True):
         from openerp.models import BaseModel
     except ImportError:
         from odoo.models import BaseModel
-    BaseModel._repr_pretty_ = lambda s, p, c: p.text(odoo_repr(s))
+    BaseModel._repr_pretty_ = _BaseModel_repr_pretty_
 
     __main__.u = UserBrowser(session)
     __main__.data = DataBrowser(session)
@@ -164,7 +164,9 @@ def _unwrap(obj):
 def odoo_repr(obj):
     obj = _unwrap(obj)
 
-    if len(obj) > 1:
+    if len(obj) > 3:
+        return "{}[{}]".format(obj._name, ', '.join(map(str, obj._ids)))
+    elif len(obj) > 1:
         return '\n\n'.join(odoo_repr(sub) for sub in obj)
 
     fields = sorted(obj._fields)
@@ -195,6 +197,13 @@ def odoo_repr(obj):
                      + (max_len - len(field)) * ' '
                      + color_repr(obj, field))
     return '\n'.join(parts)
+
+
+def _BaseModel_repr_pretty_(self, printer, cycle):
+    if printer.indentation == 0:
+        printer.text(odoo_repr(self))
+    else:
+        printer.text(repr(self))
 
 
 def oprint(obj):
@@ -322,7 +331,7 @@ class EnvAccess(object):
 
     def _repr_pretty_(self, printer, cycle):
         if self._real is not None:
-            printer.text(odoo_repr(self._real))
+            _BaseModel_repr_pretty_(self._real, printer, cycle)
         else:
             printer.text(repr(self))
 
