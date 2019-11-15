@@ -13,12 +13,8 @@ setuptools.setup(
     description="Enhanced interactive Odoo buildout prompt",
     # url=
     packages=setuptools.find_packages(),
-    entry_points={
-        'console_scripts': [
-            'odoo-repl = odoo_repl.run:main',
-        ],
-    },
-    license='AGPLv3+'
+    entry_points={'console_scripts': ['odoo-repl = odoo_repl.run:main']},
+    license='AGPLv3+',
     classifiers=[
         'Framework :: Odoo',
         'Framework :: Buildout',
@@ -31,7 +27,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3',
         'Topic :: Software Development',
     ],
-    keywords='Odoo Interactive Shell Buildout'
+    keywords='Odoo Interactive Shell Buildout',
     long_description=long_description,
     long_description_content_type='text/markdown',
     # project_urls=

@@ -13,20 +13,45 @@ import odoo_repl
 def main():
     # TODO: flags for disabling features
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--database', type=str, default=None,
-                        help="Database name")
-    parser.add_argument('-c', '--command', type=str, default=None,
-                        help="Initial command to execute")
-    parser.add_argument('--ipython', action='store_true', default=False,
-                        help="Use IPython instead of the default REPL")
-    parser.add_argument('--interpreter', type=str, default=None,
-                        help="Specify a different interpreter to use")
-    parser.add_argument('-a', '--args', type=str, default=None,
-                        help="Extra flags to pass to the interpreter")
-    parser.add_argument('--no-color', action='store_true',
-                        help="Disable colored output")
-    parser.add_argument('directory', type=str, default='.', nargs='?',
-                        help="Buildout directory to use")
+    parser.add_argument(
+        '-d', '--database', type=str, default=None, help="Database name"
+    )
+    parser.add_argument(
+        '-c',
+        '--command',
+        type=str,
+        default=None,
+        help="Initial command to execute",
+    )
+    parser.add_argument(
+        '--ipython',
+        action='store_true',
+        default=False,
+        help="Use IPython instead of the default REPL",
+    )
+    parser.add_argument(
+        '--interpreter',
+        type=str,
+        default=None,
+        help="Specify a different interpreter to use",
+    )
+    parser.add_argument(
+        '-a',
+        '--args',
+        type=str,
+        default=None,
+        help="Extra flags to pass to the interpreter",
+    )
+    parser.add_argument(
+        '--no-color', action='store_true', help="Disable colored output"
+    )
+    parser.add_argument(
+        'directory',
+        type=str,
+        default='.',
+        nargs='?',
+        help="Buildout directory to use",
+    )
     args = parser.parse_args()
 
     if args.ipython and args.interpreter:
@@ -59,11 +84,15 @@ def main():
         if py2:
             cmd = """with open({!r}) as f:
     exec f.read()
-""".format(os.environ['PYTHONSTARTUP'])
+""".format(
+                os.environ['PYTHONSTARTUP']
+            )
         else:
             cmd = """with open({!r}) as f:
     exec(f.read(), globals(), locals())
-""".format(os.environ['PYTHONSTARTUP'])
+""".format(
+                os.environ['PYTHONSTARTUP']
+            )
     else:
         cmd = ""
 
@@ -74,10 +103,12 @@ import odoo_repl
 sys.path.pop()
 odoo_repl.enable(session, __name__, color={!r})
 """.format(
-    args.database,
-    os.path.dirname(os.path.dirname(odoo_repl.__file__)),  # Might be fragile
-    not args.no_color,
-)
+        args.database,
+        os.path.dirname(
+            os.path.dirname(odoo_repl.__file__)
+        ),  # Might be fragile
+        not args.no_color,
+    )
 
     if args.command is not None:
         cmd += args.command

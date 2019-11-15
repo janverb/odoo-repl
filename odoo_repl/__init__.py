@@ -27,6 +27,7 @@ if sys.version_info >= (3, 0):
 def enable(session, module_name='__main__', color=True):
     """Enable all the bells and whistles."""
     import importlib
+
     __main__ = importlib.import_module(module_name)
 
     try:
@@ -108,9 +109,11 @@ def color_repr(owner, field_name):
         if len(obj._ids) == 0:
             return red("{}[]".format(obj._name))
         if len(obj._ids) > 10:
-            return cyan("{} \N{multiplication sign} {}".format(
-                obj._name, len(obj._ids)
-            ))
+            return cyan(
+                "{} \N{multiplication sign} {}".format(
+                    obj._name, len(obj._ids)
+                )
+            )
         if obj._name == 'res.users':
             return ', '.join(cyan(user.login) for user in obj)
         return cyan("{}{!r}".format(obj._name, list(obj._ids)))
@@ -175,11 +178,13 @@ def odoo_repr(obj):
     if len(obj) == 0:
         parts.append(yellow(obj._name))
         for field in fields:
-            parts.append("{}: ".format(green(field))
-                         # Like str.ljust, but not confused about colors
-                         + (max_len - len(field)) * ' '
-                         + field_color(obj._fields[field])
-                         + " ({})".format(obj._fields[field].string))
+            parts.append(
+                "{}: ".format(green(field))
+                # Like str.ljust, but not confused about colors
+                + (max_len - len(field)) * ' '
+                + field_color(obj._fields[field])
+                + " ({})".format(obj._fields[field].string)
+            )
         return '\n'.join(parts)
 
     header = "{}[{!r}]".format(obj._name, obj.id)
@@ -192,9 +197,11 @@ def odoo_repr(obj):
         return '\n'.join(parts)
 
     for field in fields:
-        parts.append("{}: ".format(green(field))
-                     + (max_len - len(field)) * ' '
-                     + color_repr(obj, field))
+        parts.append(
+            "{}: ".format(green(field))
+            + (max_len - len(field)) * ' '
+            + color_repr(obj, field)
+        )
     return '\n'.join(parts)
 
 
@@ -229,10 +236,13 @@ class EnvAccess(object):
         if attr.startswith('__'):
             raise AttributeError
         new = self._path + '.' + attr if self._path else attr
-        if (hasattr(self._real, attr)
-                and new not in self._session.env.registry
-                and not any(m.startswith(new + '.')
-                            for m in self._session.env.registry)):
+        if (
+            hasattr(self._real, attr)
+            and new not in self._session.env.registry
+            and not any(
+                m.startswith(new + '.') for m in self._session.env.registry
+            )
+        ):
             return getattr(self._real, attr)
         if new in self._session.env.registry:
             return EnvAccess(self._session, new, self._session.env[new])
@@ -246,13 +256,18 @@ class EnvAccess(object):
     def __dir__(self):
         if not self._path:
             return self._base_parts() + dir(self._session.env)
-        return dir(self._real) + list({mod[len(self._path)+1:].split('.', 1)[0]
-                                       for mod in self._session.env.registry
-                                       if mod.startswith(self._path + '.')})
+        return dir(self._real) + list(
+            {
+                mod[len(self._path) + 1 :].split('.', 1)[0]
+                for mod in self._session.env.registry
+                if mod.startswith(self._path + '.')
+            }
+        )
 
     def _base_parts(self):
-        return list({mod.split('.', 1)[0]
-                     for mod in self._session.env.registry})
+        return list(
+            {mod.split('.', 1)[0] for mod in self._session.env.registry}
+        )
 
     def __repr__(self):
         if self._real is not None:
@@ -272,16 +287,20 @@ class EnvAccess(object):
         # So to avoid that, check before browsing it
         if not isinstance(ind, (tuple, list)):
             ind = (ind,)
-        real_ind = set(sql(
-            self._session,
-            'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
-            [ind]
-        ))
+        real_ind = set(
+            sql(
+                self._session,
+                'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
+                [ind],
+            )
+        )
         if real_ind != set(ind):
             missing = set(ind) - real_ind
             if len(missing) == 1:
                 raise ValueError("Record {} does not exist".format(*missing))
-            raise ValueError("Records {} do not exist".format(', '.join(map(str, missing))))
+            raise ValueError(
+                "Records {} do not exist".format(', '.join(map(str, missing)))
+            )
         return self._real.browse(ind)
 
     def _ipython_key_completions_(self):
@@ -361,6 +380,7 @@ class UserBrowser(object):
 
     >>> record.sudo(u.testemployee1)  # View a record as testemployee1
     """
+
     def __init__(self, session):
         self._session = session
 
@@ -387,12 +407,14 @@ def find_data(session, obj):
     if isinstance(obj, str):
         if '.' in obj:
             module, name = obj.split('.', 1)
-            return ir_model_data.search([('module', '=', module),
-                                         ('name', '=', name)])
+            return ir_model_data.search(
+                [('module', '=', module), ('name', '=', name)]
+            )
         return ir_model_data.search([('name', '=', obj)])
     elif _is_record(obj):
-        return ir_model_data.search([('model', '=', obj._name),
-                                     ('res_id', '=', obj.id)])
+        return ir_model_data.search(
+            [('model', '=', obj._name), ('res_id', '=', obj.id)]
+        )
     raise TypeError
 
 
@@ -423,5 +445,5 @@ class DataBrowser(object):
 def _is_record(obj):
     return hasattr(obj, '_ids') and type(obj).__module__ in {
         'openerp.api',
-        'odoo.api'
+        'odoo.api',
     }
