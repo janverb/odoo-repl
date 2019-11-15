@@ -19,7 +19,6 @@ except ImportError:
 
 from datetime import datetime
 from functools import partial
-from pprint import pprint
 
 if sys.version_info >= (3, 0):
     unicode = str
@@ -210,25 +209,14 @@ def oprint(obj):
     print(odoo_repr(obj))
 
 
-if sys.version_info < (3, 3):
-    def _get_columns():
-        return int(os.popen('stty size').read().split()[1])
-else:
-    def _get_columns():
-        import shutil
-        return shutil.get_terminal_size().columns
-
-
 def displayhook(obj):
     if isinstance(obj, EnvAccess) and obj._real is not None:
         obj = obj._real
-    if obj is None:
-        return
     if _is_record(obj):
         print(odoo_repr(obj))
+        builtins._ = obj
     else:
-        pprint(obj, width=_get_columns())
-    builtins._ = obj
+        sys.__displayhook__(obj)
 
 
 class EnvAccess(object):
@@ -311,12 +299,20 @@ class EnvAccess(object):
             'SELECT id FROM {}'.format(self._session.env[self._path]._table),
         )
 
-    def _search_(self, **kwargs):
-        return self._real.search([(k, '=', getattr(v, 'id', v))
-                                  for k, v in kwargs.items()])
+    def _(self, *args, **kwargs):
+        """Perform a quick and dirty search.
+
+        ._(x='test', y=<some record>) is roughly equivalent to
+        .search([('x', '=', 'test'), ('y', '=', <some record>.id)]).
+        ._() gets all records.
+        """
+        return self._real.search(
+            [(k, '=', getattr(v, 'id', v)) for k, v in kwargs.items()]
+        )
 
     @property
     def _mod_(self):
+        """Get the ir.model record of the model."""
         assert self._real is not None
         return self._session.env['ir.model'].search(
             [('model', '=', self._path)]
@@ -326,10 +322,8 @@ class EnvAccess(object):
         """Return a random record, or multiple."""
         return self._real.browse(random.sample(self._all_ids_(), n))
 
-    def _all_(self):
-        return self._search_()
-
     def _repr_pretty_(self, printer, cycle):
+        """IPython pretty-printing."""
         if self._real is not None:
             _BaseModel_repr_pretty_(self._real, printer, cycle)
         else:
@@ -427,5 +421,7 @@ class DataBrowser(object):
 
 
 def _is_record(obj):
-    return hasattr(obj, '_ids') and \
-        type(obj).__module__ in {'openerp.api', 'odoo.api'}
+    return hasattr(obj, '_ids') and type(obj).__module__ in {
+        'openerp.api',
+        'odoo.api'
+    }
