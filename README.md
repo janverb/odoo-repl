@@ -47,4 +47,4 @@ If you have a form URL you can run it through `browse` to extract the record. Fo
 
 You can access users as attributes on `u`, e.g. `u.admin`. This is also tab-completed. That makes it easier to `.sudo()` as particular users.
 
-You can access data records under `data`, e.g. `data.user_root`. This doesn't handle namespacing nicely yet.
+You can access data records as attributes on `ref`, e.g. `ref.base.user_root`. You can also call it the same way as `env.ref`, e.g. `ref('base.user_root')`.

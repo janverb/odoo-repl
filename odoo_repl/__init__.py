@@ -41,23 +41,28 @@ def enable(session, module_name='__main__', color=True):
 
     try:
         from openerp.models import BaseModel
+        import openerp as odoo
     except ImportError:
         from odoo.models import BaseModel
+        import odoo
     BaseModel._repr_pretty_ = _BaseModel_repr_pretty_
 
-    __main__.u = UserBrowser(session)
-    __main__.data = DataBrowser(session)
+    __main__.self = session.env.user
+    __main__.odoo = odoo
+    __main__.openerp = odoo
 
     __main__.browse = partial(browse, session)
     __main__.sql = partial(sql, session)
     __main__.find_data = partial(find_data, session)
-    __main__.resolve_data = partial(resolve_data, session)
     __main__.disable_color = disable_color
 
     env = __main__.env = EnvAccess(session)
     for part in env._base_parts():
         if not hasattr(__main__, part) and not hasattr(builtins, part):
             setattr(__main__, part, getattr(env, part))
+
+    __main__.u = UserBrowser(session)
+    __main__.ref = env.ref
 
     if not color:
         disable_color()
@@ -213,7 +218,7 @@ def _BaseModel_repr_pretty_(self, printer, cycle):
 
 
 def oprint(obj):
-    print(odoo_repr(obj))
+    print('\n\n'.join(odoo_repr(record) for record in obj))
 
 
 def displayhook(obj):
@@ -231,6 +236,7 @@ class EnvAccess(object):
         self._session = session
         self._path = path
         self._real = real
+        self.ref = DataBrowser(session)
 
     def __getattr__(self, attr):
         if attr.startswith('__'):
@@ -251,7 +257,7 @@ class EnvAccess(object):
         if not self._path:
             if hasattr(self._session.env, attr):
                 return getattr(self._session.env, attr)
-        raise AttributeError
+        raise AttributeError("Model {!r} does not exist".format(new))
 
     def __dir__(self):
         if not self._path:
@@ -291,7 +297,7 @@ class EnvAccess(object):
             sql(
                 self._session,
                 'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
-                [ind],
+                ind,
             )
         )
         if real_ind != set(ind):
@@ -354,7 +360,7 @@ def sql(session, query, *args):
 
     Optimized for ease of use, at the cost of reliability.
     """
-    session.cr.execute(query, *args)
+    session.cr.execute(query, args)
     result = session.cr.fetchall()
     if result and len(result[0]) == 1:
         result = [row[0] for row in result]
@@ -402,44 +408,49 @@ class UserBrowser(object):
         return sql(self._session, 'SELECT login FROM res_users')
 
 
+class DataBrowser(object):
+    def __init__(self, session):
+        self._session = session
+
+    def __getattr__(self, attr):
+        if attr.startswith('__'):
+            raise AttributeError
+        return DataModuleBrowser(self._session, attr)
+
+    def __dir__(self):
+        return sql(self._session, 'SELECT DISTINCT module FROM ir_model_data')
+
+    def __call__(self, query):
+        return self._session.env.ref(query)
+
+
+class DataModuleBrowser(object):
+    def __init__(self, session, module):
+        self._session = session
+        self._module = module
+
+    def __getattr__(self, attr):
+        return self._session.env.ref("{}.{}".format(self._module, attr))
+
+    def __dir__(self):
+        return sql(
+            self._session,
+            'SELECT name FROM ir_model_data WHERE module = %s',
+            self._module,
+        )
+
+
 def find_data(session, obj):
     ir_model_data = session.env['ir.model.data']
     if isinstance(obj, str):
         if '.' in obj:
-            module, name = obj.split('.', 1)
-            return ir_model_data.search(
-                [('module', '=', module), ('name', '=', name)]
-            )
+            return session.env.ref(obj)
         return ir_model_data.search([('name', '=', obj)])
     elif _is_record(obj):
         return ir_model_data.search(
             [('model', '=', obj._name), ('res_id', '=', obj.id)]
         )
     raise TypeError
-
-
-def resolve_data(session, id):
-    entry = find_data(session, id)
-    return session.env[entry.model].browse(entry.res_id)
-
-
-class DataBrowser(object):
-    def __init__(self, session):
-        self._session = session
-        self._cache = None
-
-    def __getattr__(self, attr):
-        data = resolve_data(self._session, attr)
-        setattr(self, attr, data)
-        return data
-
-    def __dir__(self):
-        if self._cache is None:
-            self._cache = sql(self._session, 'SELECT name FROM ir_model_data')
-        return self._cache
-
-    __getitem__ = __getattr__
-    _ipython_key_completions_ = __dir__
 
 
 def _is_record(obj):
