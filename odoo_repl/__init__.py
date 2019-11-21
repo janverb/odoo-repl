@@ -35,7 +35,7 @@ FIELD_BLACKLIST = {
 }
 
 
-def enable(session, module_name='__main__', color=True):
+def enable(env, module_name='__main__', color=True):
     """Enable all the bells and whistles."""
     try:
         import openerp as odoo
@@ -50,23 +50,24 @@ def enable(session, module_name='__main__', color=True):
     sys.displayhook = displayhook
     odoo.models.BaseModel._repr_pretty_ = _BaseModel_repr_pretty_
 
-    __main__.self = session.env.user
+    __main__.self = env.user
     __main__.odoo = odoo
     __main__.openerp = odoo
 
-    __main__.browse = partial(browse, session)
-    __main__.sql = partial(sql, session)
-    __main__.find_data = partial(find_data, session.env)
+    __main__.browse = partial(browse, env)
+    __main__.sql = partial(sql, env)
+    __main__.find_data = partial(find_data, env)
     __main__.disable_color = disable_color
 
-    env = __main__.env = EnvAccess(session)
+    env = __main__.env = EnvAccess(env)
+    __main__.u = UserBrowser(env)
+    __main__.cfg = ConfigBrowser(env)
+
+    __main__.ref = env.ref
+
     for part in env._base_parts():
         if not hasattr(__main__, part) and not hasattr(builtins, part):
             setattr(__main__, part, getattr(env, part))
-
-    __main__.u = UserBrowser(session)
-    __main__.ref = env.ref
-    __main__.cfg = ConfigBrowser(session.env)
 
     if not color:
         disable_color()
@@ -124,7 +125,7 @@ def color_repr(owner, field_name):
                 )
             )
         if obj._name == 'res.users':
-            return ', '.join(cyan(user.login) for user in obj)
+            return ', '.join(cyan('u.' + user.login) for user in obj)
         return cyan("{}{!r}".format(obj._name, list(obj._ids)))
     elif isinstance(obj, (bytes, unicode)):
         if len(obj) > 120:
@@ -172,6 +173,27 @@ def _unwrap(obj):
     return obj
 
 
+def odoo_model_summary(obj):
+    obj = _unwrap(obj)
+
+    fields = sorted(obj._fields)
+    max_len = max(len(f) for f in fields)
+    parts = []
+
+    parts.append(yellow(obj._name))
+    for field in fields:
+        if field in FIELD_BLACKLIST:
+            continue
+        parts.append(
+            "{}: ".format(green(field))
+            # Like str.ljust, but not confused about colors
+            + (max_len - len(field)) * ' '
+            + field_color(obj._fields[field])
+            + " ({})".format(obj._fields[field].string)
+        )
+    return '\n'.join(parts)
+
+
 def odoo_repr(obj):
     obj = _unwrap(obj)
 
@@ -179,24 +201,12 @@ def odoo_repr(obj):
         return "{}[{}]".format(obj._name, ', '.join(map(str, obj._ids)))
     elif len(obj) > 1:
         return '\n\n'.join(odoo_repr(sub) for sub in obj)
+    elif len(obj) == 0:
+        return "{}[]".format(obj._name)
 
     fields = sorted(obj._fields)
     max_len = max(len(f) for f in fields)
     parts = []
-
-    if len(obj) == 0:
-        parts.append(yellow(obj._name))
-        for field in fields:
-            if field in FIELD_BLACKLIST:
-                continue
-            parts.append(
-                "{}: ".format(green(field))
-                # Like str.ljust, but not confused about colors
-                + (max_len - len(field)) * ' '
-                + field_color(obj._fields[field])
-                + " ({})".format(obj._fields[field].string)
-            )
-        return '\n'.join(parts)
 
     header = yellow("{}[{!r}]".format(obj._name, obj.id))
     data = find_data(obj.env, obj)
@@ -234,6 +244,10 @@ def oprint(obj):
 
 def displayhook(obj):
     if isinstance(obj, EnvAccess) and obj._real is not None:
+        if len(obj._real) == 0:
+            print(odoo_model_summary(obj._real))
+            builtins._ = obj
+            return
         obj = obj._real
     if _is_record(obj):
         print(odoo_repr(obj))
@@ -243,57 +257,50 @@ def displayhook(obj):
 
 
 class EnvAccess(object):
-    def __init__(self, session, path='', real=None):
-        self._session = session
+    def __init__(self, env, path='', real=None):
+        self._env = env
         self._path = path
         self._real = real
-        self.ref = DataBrowser(session)
+        self.ref = DataBrowser(env)
 
     def __getattr__(self, attr):
         if attr.startswith('__'):
             raise AttributeError
+        if not self._path and hasattr(self._env, attr):
+            return getattr(self._env, attr)
         new = self._path + '.' + attr if self._path else attr
         if (
             hasattr(self._real, attr)
-            and new not in self._session.env.registry
-            and not any(
-                m.startswith(new + '.') for m in self._session.env.registry
-            )
+            and new not in self._env.registry
+            and not any(m.startswith(new + '.') for m in self._env.registry)
         ):
             return getattr(self._real, attr)
-        if new in self._session.env.registry:
-            return EnvAccess(self._session, new, self._session.env[new])
-        if any(m.startswith(new + '.') for m in self._session.env.registry):
-            return EnvAccess(self._session, new)
-        if not self._path:
-            if hasattr(self._session.env, attr):
-                return getattr(self._session.env, attr)
+        if new in self._env.registry:
+            return EnvAccess(self._env, new, self._env[new])
+        if any(m.startswith(new + '.') for m in self._env.registry):
+            return EnvAccess(self._env, new)
         raise AttributeError("Model {!r} does not exist".format(new))
 
     def __dir__(self):
         if not self._path:
-            return self._base_parts() + dir(self._session.env)
+            return self._base_parts() + dir(self._env)
         return dir(self._real) + list(
             {
                 mod[len(self._path) + 1 :].split('.', 1)[0]
-                for mod in self._session.env.registry
+                for mod in self._env.registry
                 if mod.startswith(self._path + '.')
             }
         )
 
     def _base_parts(self):
-        return list(
-            {mod.split('.', 1)[0] for mod in self._session.env.registry}
-        )
+        return list({mod.split('.', 1)[0] for mod in self._env.registry})
 
     def __repr__(self):
-        if self._real is not None:
-            return repr(self._real)
-        return "EnvAccess({!r}, {!r})".format(self._session, self._path)
+        return "EnvAccess({!r}, {!r})".format(self._env, self._path)
 
     def __getitem__(self, ind):
         if not self._path:
-            return EnvAccess(self._session, ind, self._session.env[ind])
+            return EnvAccess(self._env, ind, self._env[ind])
         if self._real is None:
             raise TypeError("{!r} is not a model".format(self._path))
         if not ind:
@@ -312,7 +319,7 @@ class EnvAccess(object):
             return self._real
         real_ind = set(
             sql(
-                self._session,
+                self._env,
                 'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
                 ind,
             )
@@ -328,7 +335,7 @@ class EnvAccess(object):
 
     def _ipython_key_completions_(self):
         if not self._path:
-            return self._session.env.registry.keys()
+            return self._env.registry.keys()
         if self._real is None:
             return []
         # IPython doesn't seem to want to display int keys, at least in the
@@ -337,8 +344,7 @@ class EnvAccess(object):
 
     def _all_ids_(self):
         return sql(
-            self._session,
-            'SELECT id FROM {}'.format(self._session.env[self._path]._table),
+            self._env, 'SELECT id FROM {}'.format(self._env[self._path]._table)
         )
 
     def _(self, *args, **kwargs):
@@ -357,9 +363,7 @@ class EnvAccess(object):
         """Get the ir.model record of the model."""
         if self._real is None:
             raise AttributeError
-        return self._session.env['ir.model'].search(
-            [('model', '=', self._path)]
-        )
+        return self._env['ir.model'].search([('model', '=', self._path)])
 
     def _shuf_(self, n=1):
         """Return a random record, or multiple."""
@@ -367,28 +371,28 @@ class EnvAccess(object):
 
     def _repr_pretty_(self, printer, cycle):
         """IPython pretty-printing."""
-        if self._real is not None:
-            _BaseModel_repr_pretty_(self._real, printer, cycle)
+        if self._real is not None and printer.indentation == 0:
+            printer.text(odoo_model_summary(self._real))
         else:
             printer.text(repr(self))
 
 
-def sql(session, query, *args):
+def sql(env, query, *args):
     """Execute a SQL query and try to make the result nicer.
 
-    Optimized for ease of use, at the cost of reliability.
+    Optimized for ease of use, at the cost of performance and boringness.
     """
-    session.cr.execute(query, args)
-    result = session.cr.fetchall()
+    env.cr.execute(query, args)
+    result = env.cr.fetchall()
     if result and len(result[0]) == 1:
         result = [row[0] for row in result]
     return result
 
 
-def browse(session, url):
+def browse(env, url):
     """Take a browser form URL and figure out its record."""
     query = urlparse.parse_qs(urlparse.urlparse(url).fragment)
-    return session.env[query['model'][0]].browse(int(query['id'][0]))
+    return env[query['model'][0]].browse(int(query['id'][0]))
 
 
 class UserBrowser(object):
@@ -405,8 +409,8 @@ class UserBrowser(object):
     >>> record.sudo(u.testemployee1)  # View a record as testemployee1
     """
 
-    def __init__(self, session):
-        self._session = session
+    def __init__(self, env):
+        self._env = env
 
     def __getattr__(self, attr):
         # IPython does completions in a separate thread.
@@ -415,17 +419,17 @@ class UserBrowser(object):
         # We can solve that some of the time by remembering things we've
         # completed before.
         # Another option in some cases might be to use direct SQL queries.
-        user = self._session.env['res.users'].search([('login', '=', attr)])
+        user = self._env['res.users'].search([('login', '=', attr)])
         if not user:
             raise AttributeError("User {!r} not found".format(attr))
         setattr(self, attr, user)
         return user
 
     def __getitem__(self, ind):
-        return self._session.env['res.users'].browse(ind)
+        return self._env['res.users'].browse(ind)
 
     def __dir__(self):
-        return sql(self._session, 'SELECT login FROM res_users')
+        return sql(self._env, 'SELECT login FROM res_users')
 
 
 class DataBrowser(object):
@@ -439,39 +443,44 @@ class DataBrowser(object):
 
     The attribute access has tab completion.
     """
-    def __init__(self, session):
-        self._session = session
+
+    def __init__(self, env):
+        self._env = env
 
     def __getattr__(self, attr):
         if not sql(
-            self._session,
+            self._env,
             'SELECT id FROM ir_model_data WHERE module = %s LIMIT 1',
             attr,
         ):
             raise AttributeError("No module {!r}".format(attr))
-        return DataModuleBrowser(self._session, attr)
+        browser = DataModuleBrowser(self._env, attr)
+        setattr(self, attr, browser)
+        return browser
 
     def __dir__(self):
-        return sql(self._session, 'SELECT DISTINCT module FROM ir_model_data')
+        return sql(self._env, 'SELECT DISTINCT module FROM ir_model_data')
 
     def __call__(self, query):
-        return self._session.env.ref(query)
+        return self._env.ref(query)
 
 
 class DataModuleBrowser(object):
-    def __init__(self, session, module):
-        self._session = session
+    def __init__(self, env, module):
+        self._env = env
         self._module = module
 
     def __getattr__(self, attr):
         try:
-            return self._session.env.ref("{}.{}".format(self._module, attr))
+            record = self._env.ref("{}.{}".format(self._module, attr))
         except ValueError as err:
             raise AttributeError(err)
+        setattr(self, attr, record)
+        return record
 
     def __dir__(self):
         return sql(
-            self._session,
+            self._env,
             'SELECT name FROM ir_model_data WHERE module = %s',
             self._module,
         )
@@ -505,9 +514,7 @@ class ConfigBrowser(object):
     def __repr__(self):
         real = self._env['ir.config_parameter'].get_param(self._path)
         if real is False:
-            return "ConfigBrowser({!r}, {!r})".format(
-                self._env, self._path
-            )
+            return "ConfigBrowser({!r}, {!r})".format(self._env, self._path)
         return repr(real)
 
     def __str__(self):
@@ -523,14 +530,16 @@ class ConfigBrowser(object):
             return result
         real = self._env['ir.config_parameter'].get_param(new)
         if real is not False:
-            setattr(self, attr, real.value)
-            return real.value
+            setattr(self, attr, real)
+            return real
         raise AttributeError("No config parameter {!r}".format(attr))
 
     def __dir__(self):
         if not self._path:
             return self._env['ir.config_parameter'].search([]).mapped('key')
-        results = self._env['ir.config_parameter'].search(
-            [('key', '=like', self._path + '.%')]
-        ).mapped('key')
-        return list({result[len(self._path) + 1:] for result in results})
+        results = (
+            self._env['ir.config_parameter']
+            .search([('key', '=like', self._path + '.%')])
+            .mapped('key')
+        )
+        return list({result[len(self._path) + 1 :] for result in results})

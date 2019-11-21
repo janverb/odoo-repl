@@ -101,7 +101,7 @@ import sys
 sys.path.append({!r})
 import odoo_repl
 sys.path.pop()
-odoo_repl.enable(session, __name__, color={!r})
+odoo_repl.enable(session.env, __name__, color={!r})
 """.format(
         args.database,
         os.path.dirname(

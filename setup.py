@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import os
 import setuptools
 
-with open("README.md") as f:
+with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
     long_description = f.read()
 
 setuptools.setup(
-    name="odoo_repl",
+    name="odoo-repl",
     version="0.0.1",
     author="Jan Verbeek",
     author_email="jverbeek@therp.nl",

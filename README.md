@@ -2,13 +2,13 @@ This is a wrapper around the `bin/python_odoo` script included with Odoo buildou
 
 # Running
 
-First, install the wrapper. It's not on PyPi yet, so instead, run this in the repo directory:
+First, install the wrapper. It's not on PyPI yet, so instead, run this in the repo directory:
 
 ```
 $ pip3 install --user -e .
 ```
 
-You can use it for both Python 2 and Python 3 after that, no need to install it twice. It has been tested with Odoo 8, 10 and 12, but there might still be version-specific bugs.
+You can use it for both Python 2 and Python 3 after that, no need to install it twice. It has been tested with Odoo 8, 10 and 12, but there might still be version-specific bugs. It doesn't work with versions below 8.
 
 A script is installed in `~/.local/bin`. Make sure that it's in your PATH.
 
