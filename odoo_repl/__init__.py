@@ -3,6 +3,7 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import importlib
 import os
 import random
 import sys
@@ -24,28 +25,30 @@ if sys.version_info >= (3, 0):
     unicode = str
 
 
+FIELD_BLACKLIST = {
+    '__last_update',
+    'create_date',
+    'create_uid',
+    'write_date',
+    'write_uid',
+    'id',
+}
+
+
 def enable(session, module_name='__main__', color=True):
     """Enable all the bells and whistles."""
-    import importlib
+    try:
+        import openerp as odoo
+    except ImportError:
+        import odoo
 
     __main__ = importlib.import_module(module_name)
 
-    try:
-        import __builtin__ as builtins
-    except ImportError:
-        import builtins
-
     if sys.version_info < (3, 0):
         readline_init(os.path.expanduser('~/.python2_history'))
-    sys.displayhook = displayhook
 
-    try:
-        from openerp.models import BaseModel
-        import openerp as odoo
-    except ImportError:
-        from odoo.models import BaseModel
-        import odoo
-    BaseModel._repr_pretty_ = _BaseModel_repr_pretty_
+    sys.displayhook = displayhook
+    odoo.models.BaseModel._repr_pretty_ = _BaseModel_repr_pretty_
 
     __main__.self = session.env.user
     __main__.odoo = odoo
@@ -53,7 +56,7 @@ def enable(session, module_name='__main__', color=True):
 
     __main__.browse = partial(browse, session)
     __main__.sql = partial(sql, session)
-    __main__.find_data = partial(find_data, session)
+    __main__.find_data = partial(find_data, session.env)
     __main__.disable_color = disable_color
 
     env = __main__.env = EnvAccess(session)
@@ -63,6 +66,7 @@ def enable(session, module_name='__main__', color=True):
 
     __main__.u = UserBrowser(session)
     __main__.ref = env.ref
+    __main__.cfg = ConfigBrowser(session.env)
 
     if not color:
         disable_color()
@@ -183,6 +187,8 @@ def odoo_repr(obj):
     if len(obj) == 0:
         parts.append(yellow(obj._name))
         for field in fields:
+            if field in FIELD_BLACKLIST:
+                continue
             parts.append(
                 "{}: ".format(green(field))
                 # Like str.ljust, but not confused about colors
@@ -192,16 +198,21 @@ def odoo_repr(obj):
             )
         return '\n'.join(parts)
 
-    header = "{}[{!r}]".format(obj._name, obj.id)
+    header = yellow("{}[{!r}]".format(obj._name, obj.id))
+    data = find_data(obj.env, obj)
+    for data_record in data:
+        header += " (ref.{}.{})".format(data_record.module, data_record.name)
     if obj.env.uid != 1:
-        header += " ({})".format(obj.env.user.login)
-    parts.append(yellow(header))
+        header += " (as u.{})".format(obj.env.user.login)
+    parts.append(header)
 
     if not obj.exists():
         parts.append(red("Missing"))
         return '\n'.join(parts)
 
     for field in fields:
+        if field in FIELD_BLACKLIST:
+            continue
         parts.append(
             "{}: ".format(green(field))
             + (max_len - len(field)) * ' '
@@ -285,14 +296,20 @@ class EnvAccess(object):
             return EnvAccess(self._session, ind, self._session.env[ind])
         if self._real is None:
             raise TypeError("{!r} is not a model".format(self._path))
+        if not ind:
+            return self._real
+        if isinstance(ind, list):
+            ind = tuple(ind)
         # Odoo doesn't mind if you try to browse an id that doesn't exist
         # We do mind and want to throw an exception as soon as possible
         # There's a .exists() method for that
         # But in Odoo 8 a non-existent record can end up in the cache and then
         # some fields mysteriously break
         # So to avoid that, check before browsing it
-        if not isinstance(ind, (tuple, list)):
+        if not isinstance(ind, tuple):
             ind = (ind,)
+        if not ind:
+            return self._real
         real_ind = set(
             sql(
                 self._session,
@@ -300,8 +317,8 @@ class EnvAccess(object):
                 ind,
             )
         )
-        if real_ind != set(ind):
-            missing = set(ind) - real_ind
+        missing = set(ind) - real_ind
+        if missing:
             if len(missing) == 1:
                 raise ValueError("Record {} does not exist".format(*missing))
             raise ValueError(
@@ -338,7 +355,8 @@ class EnvAccess(object):
     @property
     def _mod_(self):
         """Get the ir.model record of the model."""
-        assert self._real is not None
+        if self._real is None:
+            raise AttributeError
         return self._session.env['ir.model'].search(
             [('model', '=', self._path)]
         )
@@ -396,8 +414,10 @@ class UserBrowser(object):
         # u fail.
         # We can solve that some of the time by remembering things we've
         # completed before.
+        # Another option in some cases might be to use direct SQL queries.
         user = self._session.env['res.users'].search([('login', '=', attr)])
-        user.ensure_one()
+        if not user:
+            raise AttributeError("User {!r} not found".format(attr))
         setattr(self, attr, user)
         return user
 
@@ -409,12 +429,26 @@ class UserBrowser(object):
 
 
 class DataBrowser(object):
+    """Easy access to data records by their XML IDs.
+
+    Usage:
+    >>> ref.base.user_root
+    res.users[1]
+    >>> ref('base.user_root')
+    res.users[1]
+
+    The attribute access has tab completion.
+    """
     def __init__(self, session):
         self._session = session
 
     def __getattr__(self, attr):
-        if attr.startswith('__'):
-            raise AttributeError
+        if not sql(
+            self._session,
+            'SELECT id FROM ir_model_data WHERE module = %s LIMIT 1',
+            attr,
+        ):
+            raise AttributeError("No module {!r}".format(attr))
         return DataModuleBrowser(self._session, attr)
 
     def __dir__(self):
@@ -430,7 +464,10 @@ class DataModuleBrowser(object):
         self._module = module
 
     def __getattr__(self, attr):
-        return self._session.env.ref("{}.{}".format(self._module, attr))
+        try:
+            return self._session.env.ref("{}.{}".format(self._module, attr))
+        except ValueError as err:
+            raise AttributeError(err)
 
     def __dir__(self):
         return sql(
@@ -440,11 +477,11 @@ class DataModuleBrowser(object):
         )
 
 
-def find_data(session, obj):
-    ir_model_data = session.env['ir.model.data']
+def find_data(env, obj):
+    ir_model_data = env['ir.model.data']
     if isinstance(obj, str):
         if '.' in obj:
-            return session.env.ref(obj)
+            return env.ref(obj)
         return ir_model_data.search([('name', '=', obj)])
     elif _is_record(obj):
         return ir_model_data.search(
@@ -458,3 +495,42 @@ def _is_record(obj):
         'openerp.api',
         'odoo.api',
     }
+
+
+class ConfigBrowser(object):
+    def __init__(self, env, path=''):
+        self._env = env
+        self._path = path
+
+    def __repr__(self):
+        real = self._env['ir.config_parameter'].get_param(self._path)
+        if real is False:
+            return "ConfigBrowser({!r}, {!r})".format(
+                self._env, self._path
+            )
+        return repr(real)
+
+    def __str__(self):
+        return self._env['ir.config_parameter'].get_param(self._path)
+
+    def __getattr__(self, attr):
+        new = self._path + '.' + attr if self._path else attr
+        if self._env['ir.config_parameter'].search(
+            [('key', '=like', new + '.%')], limit=1
+        ):
+            result = ConfigBrowser(self._env, new)
+            setattr(self, attr, result)
+            return result
+        real = self._env['ir.config_parameter'].get_param(new)
+        if real is not False:
+            setattr(self, attr, real.value)
+            return real.value
+        raise AttributeError("No config parameter {!r}".format(attr))
+
+    def __dir__(self):
+        if not self._path:
+            return self._env['ir.config_parameter'].search([]).mapped('key')
+        results = self._env['ir.config_parameter'].search(
+            [('key', '=like', self._path + '.%')]
+        ).mapped('key')
+        return list({result[len(self._path) + 1:] for result in results})
