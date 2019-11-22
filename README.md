@@ -12,7 +12,13 @@ You can use it for both Python 2 and Python 3 after that, no need to install it 
 
 A script is installed in `~/.local/bin`. Make sure that it's in your PATH.
 
-To launch, run `odoo-repl -d <database name>`.
+To launch, run `odoo-repl -d <database name>` in the buildout directory.
+
+Run `odoo-repl --help` to see a full list of options.
+
+## Without buildout
+
+It's also possible to enable the package's features in an ordinary `odoo-bin shell` session. To do that, execute `import odoo_repl` and then `odoo_repl.enable(env)`. To do it this way it does need to be installed for your current Python version or virtualenv.
 
 # Features
 
@@ -40,12 +46,16 @@ It even comes with colors, unless you pass the `--no-color` flag to `odoo-repl`.
 
 ## Easy record access
 
-Normally you would have to type `session.env['res.country'].browse(1)` to access a record. You can type `res.country[1]` instead. Even better, it's tab-completed, so you often don't have to type out the full name. You can type `res.cou` and press TAB.
+You can just type `res.country[1]` instead of `session.env['res.country'].browse(1)`. Even better, it's tab-completed, so you often don't have to type out the full name. You can type `res.cou` and press TAB.
 
-You can access users as attributes on `u`, e.g. `u.admin`. This is also tab-completed. That makes it easier to `.sudo()` as particular users.
+You can access users by their usernames as attributes on `u`, e.g. `u.admin`. This is also tab-completed. That makes it easier to `.sudo()` as particular users. You can also use indexing syntax for more complicated usernames, e.g. `u['test@example.com']`.
 
-You can access data records as attributes on `ref`, e.g. `ref.base.user_root`. You can also call it the same way as `env.ref`, e.g. `ref('base.user_root')`.
+You can access data records as attributes on `ref`, e.g. `ref.base.user_root`. You can also call it like a function, e.g. `ref('base.user_root')`.
 
-Models have an added `_` method for quick and dirty searching. To find all countries that use EUR as a currency, you could run `res.country._(currency_id=ref.base.EUR)`. That saves you some typing compared to `session.env['res.country'].search([('currency_id', '=', session.env.ref('base.EUR').id)])`.
+The `search` and `create` methods make intelligent use of keyword arguments:
 
-If you have a form URL you can run it through `browse` to extract the record. For example, `browse('http://localhost:8069/web#id=1&view_type=form&model=res.country')` returns the country record from before.
+- To find all countries that use EUR as a currency, run `res.country.search(currency_id=ref.base.EUR)`.
+
+- To create a new country that uses USD as a currency, run `res.country.create(name="Odooland", currency_id=ref.base.USD)`.
+
+If you have a form URL you can run it through `browse` to extract the record. For example, `browse('http://localhost:8069/web#id=1&view_type=form&model=res.country')` returns `res.country[1]`.

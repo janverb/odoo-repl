@@ -56,18 +56,21 @@ def enable(env, module_name='__main__', color=True):
 
     __main__.browse = partial(browse, env)
     __main__.sql = partial(sql, env)
-    __main__.find_data = partial(find_data, env)
-    __main__.disable_color = disable_color
 
-    env = __main__.env = EnvAccess(env)
+    __main__.env = EnvAccess(env)
     __main__.u = UserBrowser(env)
     __main__.cfg = ConfigBrowser(env)
+    __main__.ref = DataBrowser(env)
 
-    __main__.ref = env.ref
-
-    for part in env._base_parts():
+    for part in __main__.env._base_parts():
         if not hasattr(__main__, part) and not hasattr(builtins, part):
-            setattr(__main__, part, getattr(env, part))
+            setattr(
+                __main__,
+                part,
+                EnvAccess(
+                    env, part, env[part] if part in env.registry else None
+                ),
+            )
 
     if not color:
         disable_color()
@@ -232,7 +235,7 @@ def odoo_repr(obj):
 
 
 def _BaseModel_repr_pretty_(self, printer, cycle):
-    if printer.indentation == 0:
+    if printer.indentation == 0 and hasattr(self, '_ids'):
         printer.text(odoo_repr(self))
     else:
         printer.text(repr(self))
@@ -261,7 +264,6 @@ class EnvAccess(object):
         self._env = env
         self._path = path
         self._real = real
-        self.ref = DataBrowser(env)
 
     def __getattr__(self, attr):
         if attr.startswith('__'):
@@ -279,7 +281,7 @@ class EnvAccess(object):
             return EnvAccess(self._env, new, self._env[new])
         if any(m.startswith(new + '.') for m in self._env.registry):
             return EnvAccess(self._env, new)
-        raise AttributeError("Model {!r} does not exist".format(new))
+        raise AttributeError("Model '{}' does not exist".format(new))
 
     def __dir__(self):
         if not self._path:
@@ -301,8 +303,7 @@ class EnvAccess(object):
     def __getitem__(self, ind):
         if not self._path:
             return EnvAccess(self._env, ind, self._env[ind])
-        if self._real is None:
-            raise TypeError("{!r} is not a model".format(self._path))
+        self._ensure_real()
         if not ind:
             return self._real
         if isinstance(ind, list):
@@ -343,30 +344,58 @@ class EnvAccess(object):
         return self._all_ids_()
 
     def _all_ids_(self):
+        self._ensure_real()
         return sql(
             self._env, 'SELECT id FROM {}'.format(self._env[self._path]._table)
         )
 
-    def _(self, *args, **kwargs):
+    def search(
+        self, args=(), offset=0, limit=None, order='id', count=False, **kwargs
+    ):
         """Perform a quick and dirty search.
 
-        ._(x='test', y=<some record>) is roughly equivalent to
+        .search(x='test', y=<some record>) is roughly equivalent to
         .search([('x', '=', 'test'), ('y', '=', <some record>.id)]).
-        ._() gets all records.
+        .search() gets all records.
         """
+        self._ensure_real()
+        args = list(args)
+        args.extend((k, '=', getattr(v, 'id', v)) for k, v in kwargs.items())
         return self._real.search(
-            [(k, '=', getattr(v, 'id', v)) for k, v in kwargs.items()]
+            args, offset=offset, limit=limit, order=order, count=count
         )
 
-    @property
+    def create(self, vals=(), **kwargs):
+        """Create a new record, optionally with keyword arguments."""
+        self._ensure_real()
+        kwargs.update(vals)
+        for key, value in kwargs.items():
+            if key not in self._real._fields:
+                raise TypeError("Field '{}' does not exist".format(key))
+            if _is_record(value) or (
+                isinstance(value, (list, tuple))
+                and value
+                and _is_record(value[0])
+            ):
+                field_type = self._real._fields[key].type
+                if field_type.endswith('2many'):
+                    kwargs[key] = [(4, record.id) for record in value]
+                elif field_type.endswith('2one'):
+                    if len(value) > 1:
+                        raise TypeError(
+                            "Can't link multiple records for '{}'".format(key)
+                        )
+                    kwargs[key] = value.id
+        return self._real.create(kwargs)
+
     def _mod_(self):
         """Get the ir.model record of the model."""
-        if self._real is None:
-            raise AttributeError
+        self._ensure_real()
         return self._env['ir.model'].search([('model', '=', self._path)])
 
     def _shuf_(self, n=1):
         """Return a random record, or multiple."""
+        self._ensure_real()
         return self._real.browse(random.sample(self._all_ids_(), n))
 
     def _repr_pretty_(self, printer, cycle):
@@ -375,6 +404,10 @@ class EnvAccess(object):
             printer.text(odoo_model_summary(self._real))
         else:
             printer.text(repr(self))
+
+    def _ensure_real(self):
+        if self._real is None:
+            raise TypeError("Model '{}' does not exist".format(self._path))
 
 
 def sql(env, query, *args):
@@ -421,15 +454,15 @@ class UserBrowser(object):
         # Another option in some cases might be to use direct SQL queries.
         user = self._env['res.users'].search([('login', '=', attr)])
         if not user:
-            raise AttributeError("User {!r} not found".format(attr))
+            raise AttributeError("User '{}' not found".format(attr))
         setattr(self, attr, user)
         return user
 
-    def __getitem__(self, ind):
-        return self._env['res.users'].browse(ind)
-
     def __dir__(self):
         return sql(self._env, 'SELECT login FROM res_users')
+
+    __getitem__ = __getattr__
+    _ipython_key_completions_ = __dir__
 
 
 class DataBrowser(object):
@@ -453,7 +486,7 @@ class DataBrowser(object):
             'SELECT id FROM ir_model_data WHERE module = %s LIMIT 1',
             attr,
         ):
-            raise AttributeError("No module {!r}".format(attr))
+            raise AttributeError("No module '{}'".format(attr))
         browser = DataModuleBrowser(self._env, attr)
         setattr(self, attr, browser)
         return browser
@@ -532,7 +565,7 @@ class ConfigBrowser(object):
         if real is not False:
             setattr(self, attr, real)
             return real
-        raise AttributeError("No config parameter {!r}".format(attr))
+        raise AttributeError("No config parameter '{}'".format(attr))
 
     def __dir__(self):
         if not self._path:
