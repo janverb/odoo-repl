@@ -22,11 +22,12 @@ It's also possible to enable the package's features in an ordinary `odoo-bin she
 
 # Features
 
-## Pretty-printing
+## Record and model overviews
 
 Instead of seeing an uninformative `res.country(1,)` in your terminal, you get to look at something like this:
 
-```
+```pycon
+>>> res.country[1]
 res.country[1] (ref.base.ad)
 address_format:    '%(street)s\n%(street2)s\n%(city)s %(state_code)s %(zip)s\n%(country_name)s'
 address_view_id:   ir.ui.view[]
@@ -43,6 +44,34 @@ vat_label:         False
 ```
 
 It even comes with colors, unless you pass the `--no-color` flag to `odoo-repl`.
+
+You can also see summaries of models and fields, including the source files. For example:
+
+```pycon
+>>> ir.attachment
+ir.attachment
+access_token:   char (Access Token)
+active:         boolean (Active)
+checksum:       char (Checksum/SHA1)
+company_id:     many2one: res.company (Company)
+[...]
+url:            char (Url)
+
+web_editor: /home/.../parts/odoo/addons/web_editor/models/ir_attachment.py:7
+base: /home/.../parts/odoo/odoo/addons/base/models/ir_attachment.py:24
+
+>>> ir.attachment.res_model
+char res_model on ir.attachment (readonly, store)
+Resource Model: The database object this attachment will be attached to.
+base: /home/.../parts/odoo/odoo/addons/base/models/ir_attachment.py:292
+```
+
+You can use a new method, `edit_`, to open the definition of a model or field in a text editor. You can optionally pass it the name of the module to pick which definition you want to see. For example:
+
+```pycon
+>>> ir.attachment.res_model.edit_()
+>>> ir.attachment.edit_('web_editor')
+```
 
 ## Easy record access
 

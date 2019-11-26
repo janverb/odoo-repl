@@ -42,6 +42,11 @@ def main():
         "--no-color", action="store_true", help="Disable colored output"
     )
     parser.add_argument(
+        "--bg-editor",
+        action="store_true",
+        help="Allow editors to run in the background",
+    )
+    parser.add_argument(
         "directory", type=str, default=".", nargs="?", help="Buildout directory to use"
     )
     args = parser.parse_args()
@@ -93,11 +98,12 @@ import sys
 sys.path.append({!r})
 import odoo_repl
 sys.path.pop()
-odoo_repl.enable(session.env, __name__, color={!r})
+odoo_repl.enable(session.env, __name__, color={!r}, bg_editor={!r})
 """.format(
         args.database,
         os.path.dirname(os.path.dirname(odoo_repl.__file__)),  # Might be fragile
         not args.no_color,
+        args.bg_editor,
     )
 
     if args.command is not None:

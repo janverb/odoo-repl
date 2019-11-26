@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
+# TODO:
+# - stop using env as attribute/argument
+# - MethodProxy?
 
 from __future__ import print_function
 from __future__ import unicode_literals
 
 import importlib
+import inspect
 import os
+import pprint
 import random
+import re
+import subprocess
 import sys
 
 try:
@@ -26,6 +33,11 @@ PY3 = sys.version_info >= (3, 0)
 if PY3:
     unicode = str
 
+env = None
+odoo = None
+
+edit_bg = False
+
 
 FIELD_BLACKLIST = {
     "__last_update",
@@ -37,12 +49,20 @@ FIELD_BLACKLIST = {
 }
 
 
-def enable(env, module_name="__main__", color=True):
+def enable(env_, module_name="__main__", color=True, bg_editor=False):
     """Enable all the bells and whistles."""
+    global env
+    global odoo
+    global edit_bg
+
     try:
         import openerp as odoo
     except ImportError:
         import odoo
+
+    env = env_
+
+    edit_bg = bg_editor
 
     __main__ = importlib.import_module(module_name)
 
@@ -51,22 +71,25 @@ def enable(env, module_name="__main__", color=True):
 
     sys.displayhook = displayhook
     odoo.models.BaseModel._repr_pretty_ = _BaseModel_repr_pretty_
+    odoo.models.BaseModel.edit_ = edit
+    odoo.fields.Field._repr_pretty_ = _Field_repr_pretty_
+    odoo.fields.Field.edit_ = edit
 
     __main__.self = env.user
     __main__.odoo = odoo
     __main__.openerp = odoo
 
-    __main__.browse = partial(browse, env)
-    __main__.sql = partial(sql, env)
+    __main__.browse = browse
+    __main__.sql = sql
 
-    __main__.env = EnvProxy(env)
-    __main__.u = UserBrowser(env)
-    __main__.cfg = ConfigBrowser(env)
-    __main__.ref = DataBrowser(env)
+    __main__.env = EnvProxy()
+    __main__.u = UserBrowser()
+    __main__.cfg = ConfigBrowser()
+    __main__.ref = DataBrowser()
 
     for part in __main__.env._base_parts():
         if not hasattr(__main__, part) and not hasattr(builtins, part):
-            setattr(__main__, part, ModelProxy(env, part))
+            setattr(__main__, part, ModelProxy(part))
 
     if not color:
         disable_color()
@@ -166,13 +189,13 @@ def field_color(field):
 def _unwrap(obj):
     if isinstance(obj, ModelProxy):
         obj = obj._real
-    if not _is_record(obj):
-        raise TypeError
     return obj
 
 
 def odoo_model_summary(obj):
     """Summarize a model's fields."""
+    # TODO:
+    # - rename to model_repr?
     obj = _unwrap(obj)
 
     fields = sorted(obj._fields)
@@ -190,17 +213,19 @@ def odoo_model_summary(obj):
             + field_color(obj._fields[field])
             + " ({})".format(obj._fields[field].string)
         )
+    parts.append("")
+    parts.extend(_format_source(_find_source(obj)))
     return "\n".join(parts)
 
 
-def odoo_repr(obj):
+def record_repr(obj):
     """Display all of a record's fields."""
     obj = _unwrap(obj)
 
     if len(obj) > 3:
         return "{}[{}]".format(obj._name, ", ".join(map(str, obj._ids)))
     elif len(obj) > 1:
-        return "\n\n".join(odoo_repr(sub) for sub in obj)
+        return "\n\n".join(record_repr(sub) for sub in obj)
     elif len(obj) == 0:
         return "{}[]".format(obj._name)
 
@@ -209,8 +234,10 @@ def odoo_repr(obj):
     parts = []
 
     header = yellow("{}[{!r}]".format(obj._name, obj.id))
-    data = find_data(obj.env, obj)
-    for data_record in data:
+    # .get_external_id() returns at most one result per record
+    for data_record in env["ir.model.data"].search(
+        [("model", "=", obj._name), ("res_id", "=", obj.id)]
+    ):
         header += " (ref.{}.{})".format(data_record.module, data_record.name)
     if obj.env.uid != 1:
         header += " (as u.{})".format(obj.env.user.login)
@@ -231,16 +258,186 @@ def odoo_repr(obj):
     return "\n".join(parts)
 
 
+def field_repr(field):
+    """List detailed information about a field."""
+    # TODO:
+    # - .groups, .copy, .states, .inverse, .column[12]
+    field = _unwrap(field)
+    model = env[field.model_name]
+    record = env["ir.model.fields"].search(
+        [("model", "=", field.model_name), ("name", "=", field.name)]
+    )
+    parts = []
+    parts.append(
+        "{} {} on {}".format(
+            blue(record.ttype), yellow(record.name), cyan(record.model)
+        )
+    )
+    if record.relation:
+        parts[-1] += " to {}".format(cyan(record.relation))
+
+    properties = [
+        attr
+        for attr in (
+            "readonly",
+            "required",
+            "store",
+            "index",
+            "compute_sudo",
+            "translate",
+        )
+        if getattr(field, attr, False)
+    ]
+    if properties:
+        parts[-1] += " ({})".format(", ".join(properties))
+
+    parts.append(record.field_description)
+    if field.help:
+        parts[-1] += ": " + field.help
+
+    if field.compute is not None:
+        func = field.compute
+        if hasattr(func, "__func__"):
+            func = func.__func__
+        parts.append("Computed by {}".format(blue(func.__name__)))
+
+    if field.default:
+        if hasattr(model, "_defaults") and not callable(model._defaults[field.name]):
+            default = model._defaults[field.name]
+        else:
+            default = field.default
+
+        try:
+            # Very nasty but works some of the time
+            # Hopefully something better exists
+            if (
+                callable(default)
+                and default.__module__ in {"odoo.fields", "openerp.fields"}
+                and default.__name__ == "<lambda>"
+                and "value" in default.__code__.co_freevars
+            ):
+                default = default.__closure__[
+                    default.__code__.co_freevars.index("value")
+                ].cell_contents
+        except Exception:
+            pass
+
+        parts.append("Default value: {!r}".format(default))
+
+    if record.ttype == "selection":
+        parts.append(pprint.pformat(field.selection))
+
+    sources = _find_source(field)
+    parts.extend(_format_source(sources))
+
+    if not sources and record.modules:
+        parts.append(
+            "Defined in module {}".format(
+                ", ".join(green(module) for module in record.modules.split(", "))
+            )
+        )
+
+    return "\n".join(parts)
+
+
+def edit(thing, index=0, bg=None):
+    """Open a model or field definition in an editor."""
+    if bg is None:
+        bg = edit_bg
+    sources = _find_source(thing)
+    if not sources:
+        raise RuntimeError("Can't find source file!")
+    if isinstance(index, int):
+        if not 0 <= index < len(sources):
+            raise RuntimeError("Can't find match #{}".format(index))
+        module, fname, lnum = sources[index]
+    elif isinstance(index, (str, unicode)):
+        for module, fname, lnum in sources:
+            if module == index:
+                break
+        else:
+            raise RuntimeError("Can't find match for module {!r}".format(index))
+    else:
+        raise TypeError(index)
+    # $EDITOR could be an empty string
+    argv = (os.environ.get("EDITOR") or "nano").split()
+    if lnum is not None:
+        argv.append("+{}".format(lnum))
+    argv.append(fname)
+    if bg:
+        # os.setpgrp avoids KeyboardInterrupt/SIGINT
+        subprocess.Popen(argv, preexec_fn=os.setpgrp)
+    else:
+        subprocess.Popen(argv).wait()
+
+
+def _format_source(sources):
+    return [
+        "{}: {}:{}".format(green(module), fname, lnum)
+        if lnum is not None
+        else "{}: {}".format(green(module), fname)
+        for module, fname, lnum in sources
+    ]
+
+
+def _find_source(thing):
+    thing = _unwrap(thing)
+    if _is_record(thing):
+        return _find_model_source(thing)
+    elif _is_field(thing):
+        return _find_field_source(thing)
+    else:
+        raise TypeError(thing)
+
+
+def _find_model_source(model):
+    return [
+        (cls._module, inspect.getsourcefile(cls), inspect.getsourcelines(cls)[1])
+        for cls in type(model).__bases__
+        if cls._name != "base"
+    ]
+
+
+def _find_field_source(field):
+    res = []
+    for cls in type(env[field.model_name]).__bases__:
+        if (
+            hasattr(cls, "_columns") and field.name in cls._columns
+        ) or field.name in vars(cls):
+            fname = inspect.getsourcefile(cls)
+            lines, lnum = inspect.getsourcelines(cls)
+            pat = re.compile(
+                r"""^\s*['"]?{}['"]?\s*[:=]\s*fields\.""".format(field.name)
+            )
+            for line in lines:
+                if pat.match(line):
+                    break
+                lnum += 1
+            else:
+                lnum = None
+            res.append((cls._module, fname, lnum))
+    return res
+
+
 def _BaseModel_repr_pretty_(self, printer, cycle):
     if printer.indentation == 0 and hasattr(self, "_ids"):
-        printer.text(odoo_repr(self))
+        printer.text(record_repr(self))
+    else:
+        printer.text(repr(self))
+
+
+def _Field_repr_pretty_(self, printer, cycle):
+    if printer.indentation == 0 and hasattr(self, "model_name"):
+        printer.text(field_repr(self))
+    elif not hasattr(self, "model_name"):
+        printer.text("<Undisplayable field>")  # Work around bug
     else:
         printer.text(repr(self))
 
 
 def oprint(obj):
     """Display all records in a set, even if there are a lot."""
-    print("\n\n".join(odoo_repr(record) for record in obj))
+    print("\n\n".join(record_repr(record) for record in obj))
 
 
 def displayhook(obj):
@@ -249,7 +446,10 @@ def displayhook(obj):
         print(odoo_model_summary(obj._real))
         builtins._ = obj
     elif _is_record(obj):
-        print(odoo_repr(obj))
+        print(record_repr(obj))
+        builtins._ = obj
+    elif _is_field(obj):
+        print(field_repr(obj))
         builtins._ = obj
     else:
         sys.__displayhook__(obj)
@@ -262,37 +462,35 @@ class EnvProxy(object):
     behavior. Models can also be accessed as attributes, with tab completion.
     """
 
-    def __init__(self, env):
-        self._env = env
-
     def __getattr__(self, attr):
         if attr.startswith("__"):
             raise AttributeError
-        if hasattr(self._env, attr):
-            return getattr(self._env, attr)
+        if hasattr(env, attr):
+            return getattr(env, attr)
         if attr in self._base_parts():
-            return ModelProxy(self._env, attr)
+            return ModelProxy(attr)
         raise AttributeError
 
     def __dir__(self):
         listing = set(super().__dir__()) if PY3 else {"_base_parts"}
         listing.update(self._base_parts())
-        listing.update(attr for attr in dir(self._env) if not attr.startswith("__"))
+        listing.update(attr for attr in dir(env) if not attr.startswith("__"))
         return sorted(listing)
 
     def _base_parts(self):
-        return list({mod.split(".", 1)[0] for mod in self._env.registry})
+        # TODO: turn into function?
+        return list({mod.split(".", 1)[0] for mod in env.registry})
 
     def __repr__(self):
-        return "{}({!r})".format(self.__class__.__name__, self._env)
+        return "{}({!r})".format(self.__class__.__name__, env)
 
     def __getitem__(self, ind):
-        if ind not in self._env.registry:
+        if ind not in env.registry:
             raise IndexError("Model '{}' does not exist".format(ind))
-        return ModelProxy(self._env, ind)
+        return ModelProxy(ind)
 
     def _ipython_key_completions_(self):
-        return self._env.registry.keys()
+        return env.registry.keys()
 
 
 class ModelProxy(object):
@@ -303,8 +501,7 @@ class ModelProxy(object):
     and instead of an ordinary repr a summary of the fields is shown.
     """
 
-    def __init__(self, env, path):
-        self._env = env
+    def __init__(self, path):
         self._path = path
         self._real = env[path] if path in env.registry else None
 
@@ -312,23 +509,30 @@ class ModelProxy(object):
         if attr.startswith("__"):
             raise AttributeError
         new = self._path + "." + attr
-        if new in self._env.registry:
-            return self.__class__(self._env, new)
-        if any(m.startswith(new + ".") for m in self._env.registry):
-            return self.__class__(self._env, new)
+        if new in env.registry:
+            return self.__class__(new)
+        if any(m.startswith(new + ".") for m in env.registry):
+            return self.__class__(new)
         if self._real is None:
             raise AttributeError("Model '{}' does not exist".format(new))
+        if attr in self._real._fields:
+            return self._real._fields[attr]
         return getattr(self._real, attr)
 
     def __dir__(self):
         listing = set(super().__dir__()) if PY3 else set()
-        if self._real is not None:
+        if self._real is None:
+            listing -= {"create", "search"}
+        else:
             listing.update(
                 attr for attr in dir(self._real) if not attr.startswith("__")
             )
+            # https://github.com/odoo/odoo/blob/5cdfd53d/odoo/models.py#L341 adds a
+            # bogus attribute that's annoying for tab completion
+            listing -= {"<lambda>"}
         listing.update(
             mod[len(self._path) + 1 :].split(".", 1)[0]
-            for mod in self._env.registry
+            for mod in env.registry
             if mod.startswith(self._path + ".")
         )
         return sorted(listing)
@@ -347,6 +551,8 @@ class ModelProxy(object):
             return IndexError("Model '{}' does not exist".format(self._path))
         if not ind:
             return self._real
+        if ind in self._real._fields:
+            return self._real._fields[ind]
         if isinstance(ind, (list, set)):
             ind = tuple(ind)
         if not isinstance(ind, tuple):
@@ -354,11 +560,7 @@ class ModelProxy(object):
         # Browsing a non-existent record can cause weird caching problems, so
         # check first
         real_ind = set(
-            sql(
-                self._env,
-                'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
-                ind,
-            )
+            sql('SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table), ind)
         )
         missing = set(ind) - real_ind
         if missing:
@@ -366,6 +568,10 @@ class ModelProxy(object):
                 "Records {} do not exist".format(", ".join(map(str, missing)))
             )
         return self._real.browse(ind)
+
+    def _ipython_key_completions_(self):
+        self._ensure_real()
+        return list(self._real._fields)
 
     def _ensure_real(self):
         if self._real is None:
@@ -411,12 +617,12 @@ class ModelProxy(object):
     def _all_ids_(self):
         """Get all record IDs in the database."""
         self._ensure_real()
-        return sql(self._env, "SELECT id FROM {}".format(self._env[self._path]._table))
+        return sql("SELECT id FROM {}".format(env[self._path]._table))
 
     def _mod_(self):
         """Get the ir.model record of the model."""
         self._ensure_real()
-        return self._env["ir.model"].search([("model", "=", self._path)])
+        return env["ir.model"].search([("model", "=", self._path)])
 
     def _shuf_(self, num=1):
         """Return a random record, or multiple."""
@@ -424,7 +630,7 @@ class ModelProxy(object):
         return self._real.browse(random.sample(self._all_ids_(), num))
 
 
-def sql(env, query, *args):
+def sql(query, *args):
     """Execute a SQL query and try to make the result nicer.
 
     Optimized for ease of use, at the cost of performance and boringness.
@@ -436,7 +642,7 @@ def sql(env, query, *args):
     return result
 
 
-def browse(env, url):
+def browse(url):
     """Take a browser form URL and figure out its record."""
     # TODO: handle other views more intelligently
     #       perhaps based on the user?
@@ -458,22 +664,19 @@ class UserBrowser(object):
     >>> record.sudo(u.testemployee1)  # View a record as testemployee1
     """
 
-    def __init__(self, env):
-        self._env = env
-
     def __getattr__(self, attr):
         # IPython does completions in a separate thread.
         # Odoo doesn't like that. So completions on attributes of `u` fail.
         # We can solve that sometimes by remembering things we've completed
         # before.
-        user = self._env["res.users"].search([("login", "=", attr)])
+        user = env["res.users"].search([("login", "=", attr)])
         if not user:
             raise AttributeError("User '{}' not found".format(attr))
         setattr(self, attr, user)
         return user
 
     def __dir__(self):
-        return sql(self._env, "SELECT login FROM res_users")
+        return sql("SELECT login FROM res_users")
 
     __getitem__ = __getattr__
     _ipython_key_completions_ = __dir__
@@ -491,91 +694,73 @@ class DataBrowser(object):
     The attribute access has tab completion.
     """
 
-    def __init__(self, env):
-        self._env = env
-
     def __getattr__(self, attr):
-        if not sql(
-            self._env, "SELECT id FROM ir_model_data WHERE module = %s LIMIT 1", attr
-        ):
+        if not sql("SELECT id FROM ir_model_data WHERE module = %s LIMIT 1", attr):
             raise AttributeError("No module '{}'".format(attr))
-        browser = DataModuleBrowser(self._env, attr)
+        browser = DataModuleBrowser(attr)
         setattr(self, attr, browser)
         return browser
 
     def __dir__(self):
-        return sql(self._env, "SELECT DISTINCT module FROM ir_model_data")
+        return sql("SELECT DISTINCT module FROM ir_model_data")
 
     def __call__(self, query):
-        return self._env.ref(query)
+        return env.ref(query)
 
 
 class DataModuleBrowser(object):
     """Access data records within a module. Created by DataBrowser."""
 
-    def __init__(self, env, module):
-        self._env = env
+    def __init__(self, module):
         self._module = module
 
     def __getattr__(self, attr):
         try:
-            record = self._env.ref("{}.{}".format(self._module, attr))
+            record = env.ref("{}.{}".format(self._module, attr))
         except ValueError as err:
             raise AttributeError(err)
         setattr(self, attr, record)
         return record
 
     def __dir__(self):
-        return sql(
-            self._env, "SELECT name FROM ir_model_data WHERE module = %s", self._module
-        )
-
-
-def find_data(env, obj):
-    """Find the ir.model.data record for a record or an ID."""
-    ir_model_data = env["ir.model.data"]
-    if isinstance(obj, str):
-        if "." in obj:
-            return env.ref(obj)
-        return ir_model_data.search([("name", "=", obj)])
-    elif _is_record(obj):
-        return ir_model_data.search(
-            [("model", "=", obj._name), ("res_id", "=", obj.id)]
-        )
-    raise TypeError
+        return sql("SELECT name FROM ir_model_data WHERE module = %s", self._module)
 
 
 def _is_record(obj):
     """Return whether an object is an Odoo record."""
-    # This has to work without importing BaseModel
-    return hasattr(obj, "_ids") and type(obj).__module__ in {"openerp.api", "odoo.api"}
+    if odoo is None:
+        return False
+    return isinstance(obj, odoo.models.BaseModel) and hasattr(obj, "_ids")
+
+
+def _is_field(obj):
+    if odoo is None:
+        return False
+    return isinstance(obj, odoo.fields.Field)
 
 
 class ConfigBrowser(object):
     """Access ir.config.parameter entries as attributes."""
 
-    def __init__(self, env, path=""):
-        self._env = env
+    def __init__(self, path=""):
         self._path = path
 
     def __repr__(self):
-        real = self._env["ir.config_parameter"].get_param(self._path)
+        real = env["ir.config_parameter"].get_param(self._path)
         if real is False:
             return "<{}({})>".format(self.__class__.__name__, self._path)
         return repr(real)
 
     def __str__(self):
-        return self._env["ir.config_parameter"].get_param(self._path)
+        return env["ir.config_parameter"].get_param(self._path)
 
     def __getattr__(self, attr):
         new = self._path + "." + attr if self._path else attr
-        if self._env["ir.config_parameter"].search(
-            [("key", "=like", new + ".%")], limit=1
-        ):
-            result = ConfigBrowser(self._env, new)
+        if env["ir.config_parameter"].search([("key", "=like", new + ".%")], limit=1):
+            result = ConfigBrowser(new)
             setattr(self, attr, result)
             return result
-        real = self._env["ir.config_parameter"].get_param(new)
+        real = env["ir.config_parameter"].get_param(new)
         if real is not False:
             setattr(self, attr, real)
             return real
@@ -583,11 +768,11 @@ class ConfigBrowser(object):
 
     def __dir__(self):
         if not self._path:
-            return self._env["ir.config_parameter"].search([]).mapped("key")
+            return env["ir.config_parameter"].search([]).mapped("key")
         return list(
             {
                 result[len(self._path) + 1 :]
-                for result in self._env["ir.config_parameter"]
+                for result in env["ir.config_parameter"]
                 .search([("key", "=like", self._path + ".%")])
                 .mapped("key")
             }
