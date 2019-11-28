@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # TODO:
-# - stop using env as attribute/argument
-# - MethodProxy?
+# - access rights?
+# - move ModelProxy.create()/.search() to MethodProxy
 
 from __future__ import print_function
 from __future__ import unicode_literals
@@ -60,6 +60,9 @@ def enable(env_, module_name="__main__", color=True, bg_editor=False):
     except ImportError:
         import odoo
 
+    if isinstance(env_, odoo.sql_db.Cursor):
+        env_ = odoo.api.Environment(env_, odoo.SUPERUSER_ID, {})
+
     env = env_
 
     edit_bg = bg_editor
@@ -72,6 +75,7 @@ def enable(env_, module_name="__main__", color=True, bg_editor=False):
     sys.displayhook = displayhook
     odoo.models.BaseModel._repr_pretty_ = _BaseModel_repr_pretty_
     odoo.models.BaseModel.edit_ = edit
+    odoo.models.BaseModel.print_ = odoo_print
     odoo.fields.Field._repr_pretty_ = _Field_repr_pretty_
     odoo.fields.Field.edit_ = edit
 
@@ -187,15 +191,35 @@ def field_color(field):
 
 
 def _unwrap(obj):
-    if isinstance(obj, ModelProxy):
+    if isinstance(obj, (ModelProxy, MethodProxy)):
         obj = obj._real
     return obj
 
 
-def odoo_model_summary(obj):
+def odoo_repr(obj):
+    if isinstance(obj, ModelProxy):
+        return model_repr(obj)
+    elif isinstance(obj, MethodProxy):
+        return method_repr(obj)
+    elif _is_record(obj):
+        return record_repr(obj)
+    elif _is_field(obj):
+        return field_repr(obj)
+    else:
+        return repr(obj)
+
+
+def odoo_print(obj):
+    if _is_record(obj) and len(obj) > 1:
+        print("\n\n".join(record_repr(record) for record in obj))
+    else:
+        print(odoo_repr(obj))
+
+
+def model_repr(obj):
     """Summarize a model's fields."""
-    # TODO:
-    # - rename to model_repr?
+    if isinstance(obj, ModelProxy) and obj._real is None:
+        return repr(obj)
     obj = _unwrap(obj)
 
     fields = sorted(obj._fields)
@@ -222,12 +246,10 @@ def record_repr(obj):
     """Display all of a record's fields."""
     obj = _unwrap(obj)
 
-    if len(obj) > 3:
-        return "{}[{}]".format(obj._name, ", ".join(map(str, obj._ids)))
-    elif len(obj) > 1:
-        return "\n\n".join(record_repr(sub) for sub in obj)
-    elif len(obj) == 0:
+    if len(obj) == 0:
         return "{}[]".format(obj._name)
+    elif len(obj) > 1:
+        return "{}[{}]".format(obj._name, ", ".join(map(str, obj._ids)))
 
     fields = sorted(obj._fields)
     max_len = max(len(f) for f in fields)
@@ -301,6 +323,13 @@ def field_repr(field):
             func = func.__func__
         parts.append("Computed by {}".format(blue(func.__name__)))
 
+    if field.inverse_fields:
+        parts.append(
+            "Inverted by {}".format(
+                ", ".join(yellow(inv.name) for inv in field.inverse_fields)
+            )
+        )
+
     if field.default:
         if hasattr(model, "_defaults") and not callable(model._defaults[field.name]):
             default = model._defaults[field.name]
@@ -322,7 +351,26 @@ def field_repr(field):
         except Exception:
             pass
 
-        parts.append("Default value: {!r}".format(default))
+        show_literal = False
+        try:
+            # Perhaps even nastier than the last one
+            if getattr(default, "__name__", None) == "<lambda>":
+                source = inspect.getsource(default).replace("\n", " ").strip()
+                source = re.search("lambda [^:]*:(.*)", source).group(1).strip()
+                try:
+                    compile(source, "", "eval")
+                except SyntaxError as err:
+                    source = source[: err.offset - 1]
+                    compile(source, "", "eval")
+                default = purple(source)
+                show_literal = True
+        except Exception as err:
+            pass
+
+        if show_literal:
+            parts.append("Default value: {}".format(default))
+        else:
+            parts.append("Default value: {!r}".format(default))
 
     if record.ttype == "selection":
         parts.append(pprint.pformat(field.selection))
@@ -340,17 +388,56 @@ def field_repr(field):
     return "\n".join(parts)
 
 
-def edit(thing, index=0, bg=None):
+def method_repr(method):
+    sources = _find_method_source(method)
+    model = method.model
+    name = method.name
+    model_class = type(model)
+    method = method._real
+    api = getattr(method, "_api", None)
+    if callable(api):
+        api = api.__name__
+    while hasattr(method, "_orig"):
+        method = method._orig
+    if hasattr(method, "__func__"):
+        method = method.__func__
+    signature = (
+        str(inspect.signature(method))
+        if PY3
+        else inspect.formatargspec(*inspect.getargspec(method))
+    )
+    doc = inspect.getdoc(method)
+    parts = []
+    parts.append(
+        "{api} {model}.{name}{signature}".format(
+            api=blue("@api." + api) if api else "method",
+            model=cyan(model._name),
+            name=yellow(name),
+            signature=signature,
+        )
+    )
+    if doc:
+        parts.append(doc)
+    if hasattr(method, "_depends"):
+        parts.append("Depends on {}".format(", ".join(method._depends)))
+    parts.append("")
+    parts.extend(_format_source(sources))
+    return "\n".join(parts)
+
+
+def edit(thing, index=-1, bg=None):
     """Open a model or field definition in an editor."""
+    # TODO: editor kwarg and/or argparse flag
     if bg is None:
         bg = edit_bg
     sources = _find_source(thing)
     if not sources:
         raise RuntimeError("Can't find source file!")
     if isinstance(index, int):
-        if not 0 <= index < len(sources):
+        try:
+            module, fname, lnum = sources[index]
+        except IndexError:
             raise RuntimeError("Can't find match #{}".format(index))
-        module, fname, lnum = sources[index]
     elif isinstance(index, (str, unicode)):
         for module, fname, lnum in sources:
             if module == index:
@@ -381,11 +468,12 @@ def _format_source(sources):
 
 
 def _find_source(thing):
-    thing = _unwrap(thing)
     if _is_record(thing):
-        return _find_model_source(thing)
+        return _find_model_source(_unwrap(thing))
     elif _is_field(thing):
         return _find_field_source(thing)
+    elif isinstance(thing, MethodProxy):
+        return _find_method_source(thing)
     else:
         raise TypeError(thing)
 
@@ -394,7 +482,7 @@ def _find_model_source(model):
     return [
         (cls._module, inspect.getsourcefile(cls), inspect.getsourcelines(cls)[1])
         for cls in type(model).__bases__
-        if cls._name != "base"
+        if cls.__module__ not in {"odoo.api", "openerp.api"}
     ]
 
 
@@ -417,6 +505,22 @@ def _find_field_source(field):
                 lnum = None
             res.append((cls._module, fname, lnum))
     return res
+
+
+def _find_method_source(method):
+    def unpack(meth):
+        return getattr(meth, "_orig", meth)
+
+    return [
+        (
+            getattr(cls, "_module", cls.__name__),
+            inspect.getsourcefile(cls),
+            inspect.getsourcelines(unpack(getattr(cls, method.name)))[1],
+        )
+        for cls in type(method.model).mro()[1:]
+        # if cls._name != "base"
+        if method.name in vars(cls)
+    ]
 
 
 def _BaseModel_repr_pretty_(self, printer, cycle):
@@ -442,17 +546,9 @@ def oprint(obj):
 
 def displayhook(obj):
     """A sys.displayhook replacement that pretty-prints models and records."""
-    if isinstance(obj, ModelProxy) and obj._real is not None:
-        print(odoo_model_summary(obj._real))
+    if obj is not None:
+        print(odoo_repr(obj))
         builtins._ = obj
-    elif _is_record(obj):
-        print(record_repr(obj))
-        builtins._ = obj
-    elif _is_field(obj):
-        print(field_repr(obj))
-        builtins._ = obj
-    else:
-        sys.__displayhook__(obj)
 
 
 class EnvProxy(object):
@@ -517,7 +613,10 @@ class ModelProxy(object):
             raise AttributeError("Model '{}' does not exist".format(new))
         if attr in self._real._fields:
             return self._real._fields[attr]
-        return getattr(self._real, attr)
+        thing = getattr(self._real, attr)
+        if callable(thing):
+            thing = MethodProxy(thing, self._real, attr)
+        return thing
 
     def __dir__(self):
         listing = set(super().__dir__()) if PY3 else set()
@@ -542,7 +641,7 @@ class ModelProxy(object):
 
     def _repr_pretty_(self, printer, cycle):
         if self._real is not None and printer.indentation == 0:
-            printer.text(odoo_model_summary(self._real))
+            printer.text(model_repr(self._real))
         else:
             printer.text(repr(self))
 
@@ -553,6 +652,10 @@ class ModelProxy(object):
             return self._real
         if ind in self._real._fields:
             return self._real._fields[ind]
+        if isinstance(ind, (str, unicode)) and hasattr(self._real, ind):
+            thing = getattr(self._real, ind)
+            if callable(thing):
+                return MethodProxy(thing, self._real, ind)
         if isinstance(ind, (list, set)):
             ind = tuple(ind)
         if not isinstance(ind, tuple):
@@ -628,6 +731,39 @@ class ModelProxy(object):
         """Return a random record, or multiple."""
         self._ensure_real()
         return self._real.browse(random.sample(self._all_ids_(), num))
+
+
+class MethodProxy(object):
+    def __init__(self, method, model, name):
+        self._real = method
+        self.model = model
+        self.name = name
+
+    def __call__(self, *args, **kwargs):
+        return self._real(*args, **kwargs)
+
+    def __getattr__(self, attr):
+        if attr.startswith("__"):
+            raise AttributeError
+        return getattr(self._real, attr)
+
+    def __dir__(self):
+        listing = set(super().__dir__()) if PY3 else {"edit_"}
+        listing.update(dir(self._real))
+        return sorted(listing)
+
+    def __repr__(self):
+        return "{}({!r}, {!r}, {!r})".format(
+            self.__class__.__name__, self._real, self.model, self.name
+        )
+
+    def _repr_pretty_(self, printer, cycle):
+        if printer.indentation == 0:
+            printer.text(method_repr(self))
+        else:
+            printer.text(repr(self))
+
+    edit_ = edit
 
 
 def sql(query, *args):
