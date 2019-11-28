@@ -102,7 +102,7 @@ odoo_repl.enable(session.env, __name__, color={!r}, bg_editor={!r})
 """.format(
         args.database,
         os.path.dirname(os.path.dirname(odoo_repl.__file__)),  # Might be fragile
-        not args.no_color,
+        not (args.no_color or os.environ.get("NO_COLOR")),
         args.bg_editor,
     )
 

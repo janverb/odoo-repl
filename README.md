@@ -18,7 +18,7 @@ Run `odoo-repl --help` to see a full list of options.
 
 ## Without buildout
 
-It's also possible to enable the package's features in an ordinary `odoo-bin shell` session. To do that, execute `import odoo_repl` and then `odoo_repl.enable(env)`. To do it this way it does need to be installed for your current Python version or virtualenv.
+It's also possible to enable the package's features in an ordinary `odoo-bin shell` session. To do that, execute `import odoo_repl` and then `odoo_repl.enable()`. To do it this way it does need to be installed for your current Python version or virtualenv.
 
 # Features
 

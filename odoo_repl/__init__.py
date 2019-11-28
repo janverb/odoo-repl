@@ -2,10 +2,13 @@
 # TODO:
 # - access rights?
 # - move ModelProxy.create()/.search() to MethodProxy
+# - FieldProxy to be able to follow e.g. res.users.log_ids.create_date
+# - refactor into submodules
 
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import collections
 import importlib
 import inspect
 import os
@@ -30,8 +33,8 @@ from functools import partial
 
 PY3 = sys.version_info >= (3, 0)
 
-if PY3:
-    unicode = str
+Text = (str,) if PY3 else (str, unicode)
+TextLike = (str, bytes) if PY3 else (str, unicode)
 
 env = None
 odoo = None
@@ -49,7 +52,7 @@ FIELD_BLACKLIST = {
 }
 
 
-def enable(env_, module_name="__main__", color=True, bg_editor=False):
+def enable(db=None, module_name=None, color=True, bg_editor=False):
     """Enable all the bells and whistles."""
     global env
     global odoo
@@ -60,14 +63,35 @@ def enable(env_, module_name="__main__", color=True, bg_editor=False):
     except ImportError:
         import odoo
 
-    if isinstance(env_, odoo.sql_db.Cursor):
-        env_ = odoo.api.Environment(env_, odoo.SUPERUSER_ID, {})
-
-    env = env_
-
-    edit_bg = bg_editor
+    if module_name is None:
+        try:
+            module_name = sys._getframe().f_back.f_globals["__name__"]
+        except Exception:
+            pass
+        if module_name in {None, "odoo_repl"}:
+            print("Warning: can't determine module_name, assuming '__main__'")
+            module_name = "__main__"
 
     __main__ = importlib.import_module(module_name)
+
+    if db is None or isinstance(db, Text):
+        db_name = db or odoo.tools.config["db_name"]
+        if not db_name:
+            raise ValueError(
+                "Can't determine database name. Run with `-d dbname`"
+                "or pass it as the first argument to odoo_repl.enable()."
+            )
+        env = odoo.api.Environment(
+            odoo.sql_db.db_connect(db_name).cursor(), odoo.SUPERUSER_ID, {}
+        )
+    elif isinstance(db, odoo.sql_db.Cursor):
+        env = odoo.api.Environment(db, odoo.SUPERUSER_ID, {})
+    elif isinstance(db, odoo.api.Environment):
+        env = db
+    else:
+        raise TypeError(db)
+
+    edit_bg = bg_editor
 
     if sys.version_info < (3, 0):
         readline_init(os.path.expanduser("~/.python2_history"))
@@ -79,17 +103,25 @@ def enable(env_, module_name="__main__", color=True, bg_editor=False):
     odoo.fields.Field._repr_pretty_ = _Field_repr_pretty_
     odoo.fields.Field.edit_ = edit
 
-    __main__.self = env.user
-    __main__.odoo = odoo
-    __main__.openerp = odoo
-
-    __main__.browse = browse
-    __main__.sql = sql
-
-    __main__.env = EnvProxy()
-    __main__.u = UserBrowser()
-    __main__.cfg = ConfigBrowser()
-    __main__.ref = DataBrowser()
+    to_install = {
+        "self": env.user,
+        "odoo": odoo,
+        "openerp": odoo,
+        "browse": browse,
+        "sql": sql,
+        "env": EnvProxy(),
+        "u": UserBrowser(),
+        "cfg": ConfigBrowser(),
+        "ref": DataBrowser(),
+    }
+    for name, obj in to_install.items():
+        if hasattr(builtins, name):
+            continue
+        if hasattr(__main__, name):
+            if getattr(__main__, name) != obj:
+                print("Not installing {} due to name conflict".format(name))
+            continue
+        setattr(__main__, name, obj)
 
     for part in __main__.env._base_parts():
         if not hasattr(__main__, part) and not hasattr(builtins, part):
@@ -103,6 +135,7 @@ def disable_color():
     """Disable colored output for model and record summaries."""
     global red, green, yellow, blue, purple, cyan
     red = green = yellow = blue = purple = cyan = lambda s: s
+    field_colors.clear()
 
 
 def readline_init(history=None):
@@ -152,7 +185,7 @@ def color_repr(owner, field_name):
         if obj._name == "res.users":
             return ", ".join(cyan("u." + user.login) for user in obj)
         return cyan("{}{!r}".format(obj._name, list(obj._ids)))
-    elif isinstance(obj, (bytes, unicode)):
+    elif isinstance(obj, TextLike):
         if len(obj) > 120:
             return blue(repr(obj)[:120] + "...")
         return blue(repr(obj))
@@ -227,8 +260,19 @@ def model_repr(obj):
     parts = []
 
     parts.append(yellow(obj._name))
+    if getattr(obj, "_inherits", False):
+        for model_name, field_name in obj._inherits.items():
+            parts.append(
+                "Inherits from {} through {}".format(
+                    cyan(model_name), green(field_name)
+                )
+            )
+    delegated = []
     for field in fields:
         if field in FIELD_BLACKLIST:
+            continue
+        if getattr(obj._fields[field], "related", False):
+            delegated.append(obj._fields[field])
             continue
         parts.append(
             "{}: ".format(green(field))
@@ -237,6 +281,22 @@ def model_repr(obj):
             + field_color(obj._fields[field])
             + " ({})".format(obj._fields[field].string)
         )
+    if delegated:
+        buckets = collections.defaultdict(list)
+        for field in delegated:
+            buckets[field.related[:-1]].append(
+                green(field.name)
+                if field.related[-1] == field.name
+                else "{} (.{})".format(green(field.name), field.related[-1])
+            )
+        parts.append("")
+        for related_field, field_names in buckets.items():
+            # TODO: figure out name of model of real field
+            parts.append(
+                "Delegated to {}: {}".format(
+                    yellow(".".join(related_field)), ", ".join(field_names)
+                )
+            )
     parts.append("")
     parts.extend(_format_source(_find_source(obj)))
     return "\n".join(parts)
@@ -305,7 +365,9 @@ def field_repr(field):
             "required",
             "store",
             "index",
+            "auto_join",
             "compute_sudo",
+            "related_sudo",
             "translate",
         )
         if getattr(field, attr, False)
@@ -317,13 +379,15 @@ def field_repr(field):
     if field.help:
         parts[-1] += ": " + field.help
 
-    if field.compute is not None:
+    if getattr(field, "related", False):
+        parts.append("Delegated to {}".format(yellow(".".join(field.related))))
+    elif field.compute is not None:
         func = field.compute
         if hasattr(func, "__func__"):
             func = func.__func__
         parts.append("Computed by {}".format(blue(func.__name__)))
 
-    if field.inverse_fields:
+    if getattr(field, "inverse_fields", False):
         parts.append(
             "Inverted by {}".format(
                 ", ".join(yellow(inv.name) for inv in field.inverse_fields)
@@ -389,18 +453,42 @@ def field_repr(field):
 
 
 def method_repr(method):
+    def find_decorators(method):
+        if hasattr(method, "_constrains"):
+            yield blue("@api.constrains") + "({})".format(
+                ", ".join(map(repr, method._constrains))
+            )
+        if hasattr(method, "_depends"):
+            if callable(method._depends):
+                yield blue("@api.depends") + "({!r})".format(method._depends)
+            else:
+                yield blue("@api.depends") + "({})".format(
+                    ", ".join(map(repr, method._depends))
+                )
+        if hasattr(method, "_onchange"):
+            yield blue("@api.onchange") + "({})".format(
+                ", ".join(map(repr, method._onchange))
+            )
+        if getattr(method, "_api", False):
+            api = method._api
+            yield blue("@api.{}".format(api.__name__ if callable(api) else api))
+        if not hasattr(method, "__self__"):
+            yield blue("@staticmethod")
+        elif isinstance(method.__self__, type):
+            yield blue("@classmethod")
+
     sources = _find_method_source(method)
     model = method.model
     name = method.name
     model_class = type(model)
     method = method._real
-    api = getattr(method, "_api", None)
-    if callable(api):
-        api = api.__name__
+    decorators = list(find_decorators(method))
+
     while hasattr(method, "_orig"):
         method = method._orig
     if hasattr(method, "__func__"):
         method = method.__func__
+
     signature = (
         str(inspect.signature(method))
         if PY3
@@ -408,18 +496,14 @@ def method_repr(method):
     )
     doc = inspect.getdoc(method)
     parts = []
+    parts.extend(decorators)
     parts.append(
-        "{api} {model}.{name}{signature}".format(
-            api=blue("@api." + api) if api else "method",
-            model=cyan(model._name),
-            name=yellow(name),
-            signature=signature,
+        "{model}.{name}{signature}".format(
+            model=cyan(model._name), name=yellow(name), signature=signature
         )
     )
     if doc:
         parts.append(doc)
-    if hasattr(method, "_depends"):
-        parts.append("Depends on {}".format(", ".join(method._depends)))
     parts.append("")
     parts.extend(_format_source(sources))
     return "\n".join(parts)
@@ -438,7 +522,7 @@ def edit(thing, index=-1, bg=None):
             module, fname, lnum = sources[index]
         except IndexError:
             raise RuntimeError("Can't find match #{}".format(index))
-    elif isinstance(index, (str, unicode)):
+    elif isinstance(index, Text):
         for module, fname, lnum in sources:
             if module == index:
                 break
@@ -492,6 +576,8 @@ def _find_field_source(field):
         if (
             hasattr(cls, "_columns") and field.name in cls._columns
         ) or field.name in vars(cls):
+            if cls.__module__ in {"odoo.api", "openerp.api"}:
+                continue
             fname = inspect.getsourcefile(cls)
             lines, lnum = inspect.getsourcelines(cls)
             pat = re.compile(
@@ -585,6 +671,9 @@ class EnvProxy(object):
             raise IndexError("Model '{}' does not exist".format(ind))
         return ModelProxy(ind)
 
+    def __eq__(self, other):
+        return self.__class__ is other.__class__
+
     def _ipython_key_completions_(self):
         return env.registry.keys()
 
@@ -652,10 +741,11 @@ class ModelProxy(object):
             return self._real
         if ind in self._real._fields:
             return self._real._fields[ind]
-        if isinstance(ind, (str, unicode)) and hasattr(self._real, ind):
+        if isinstance(ind, Text):
             thing = getattr(self._real, ind)
             if callable(thing):
                 return MethodProxy(thing, self._real, ind)
+            return thing
         if isinstance(ind, (list, set)):
             ind = tuple(ind)
         if not isinstance(ind, tuple):
@@ -814,6 +904,9 @@ class UserBrowser(object):
     def __dir__(self):
         return sql("SELECT login FROM res_users")
 
+    def __eq__(self, other):
+        return self.__class__ is other.__class__
+
     __getitem__ = __getattr__
     _ipython_key_completions_ = __dir__
 
@@ -842,6 +935,9 @@ class DataBrowser(object):
 
     def __call__(self, query):
         return env.ref(query)
+
+    def __eq__(self, other):
+        return self.__class__ is other.__class__
 
 
 class DataModuleBrowser(object):
@@ -913,3 +1009,6 @@ class ConfigBrowser(object):
                 .mapped("key")
             }
         )
+
+    def __eq__(self, other):
+        return self.__class__ is other.__class__ and self._path == other._path
