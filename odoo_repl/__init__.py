@@ -154,12 +154,12 @@ def readline_init(history=None):
 
 
 # Terminal escape codes for coloring text
-red = "\x1b[1m\x1b[31m{}\x1b[30m\x1b(B\x1b[m".format
-green = "\x1b[1m\x1b[32m{}\x1b[30m\x1b(B\x1b[m".format
-yellow = "\x1b[1m\x1b[33m{}\x1b[30m\x1b(B\x1b[m".format
-blue = "\x1b[1m\x1b[34m{}\x1b[30m\x1b(B\x1b[m".format
-purple = "\x1b[1m\x1b[35m{}\x1b[30m\x1b(B\x1b[m".format
-cyan = "\x1b[1m\x1b[36m{}\x1b[30m\x1b(B\x1b[m".format
+red = "\x1b[1m\x1b[31m{}\x1b[30m\x1b[m".format
+green = "\x1b[1m\x1b[32m{}\x1b[30m\x1b[m".format
+yellow = "\x1b[1m\x1b[33m{}\x1b[30m\x1b[m".format
+blue = "\x1b[1m\x1b[34m{}\x1b[30m\x1b[m".format
+purple = "\x1b[1m\x1b[35m{}\x1b[30m\x1b[m".format
+cyan = "\x1b[1m\x1b[36m{}\x1b[30m\x1b[m".format
 
 
 def color_repr(owner, field_name):
