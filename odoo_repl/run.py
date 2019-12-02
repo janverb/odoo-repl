@@ -49,6 +49,9 @@ def main():
     parser.add_argument(
         "directory", type=str, default=".", nargs="?", help="Buildout directory to use"
     )
+    parser.add_argument(
+        "extra_args", nargs="*", help="Extra configuration arguments you'd pass to odoo"
+    )
     args = parser.parse_args()
 
     if args.ipython and args.interpreter:
@@ -93,17 +96,21 @@ def main():
     else:
         cmd = ""
 
-    cmd += """session.open(db={!r})
-import sys
-sys.path.append({!r})
+    cmd += """import sys
+sys.path.append({odoo_repl_path!r})
 import odoo_repl
 sys.path.pop()
-odoo_repl.enable(session.env, __name__, color={!r}, bg_editor={!r})
+odoo_repl.parse_config(['-c', session.openerp_config_file] + {extra_args!r})
+session.open(db={database!r})
+odoo_repl.enable(session.env, __name__, color={color!r}, bg_editor={bg_editor!r})
 """.format(
-        args.database,
-        os.path.dirname(os.path.dirname(odoo_repl.__file__)),  # Might be fragile
-        not (args.no_color or os.environ.get("NO_COLOR")),
-        args.bg_editor,
+        database=args.database,
+        odoo_repl_path=os.path.dirname(
+            os.path.dirname(odoo_repl.__file__)
+        ),  # Might be fragile
+        color=not (args.no_color or os.environ.get("NO_COLOR")),
+        bg_editor=args.bg_editor,
+        extra_args=args.extra_args,
     )
 
     if args.command is not None:

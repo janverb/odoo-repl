@@ -11,6 +11,7 @@ from __future__ import unicode_literals
 import collections
 import importlib
 import inspect
+import logging
 import os
 import pprint
 import random
@@ -50,6 +51,17 @@ FIELD_BLACKLIST = {
     "write_uid",
     "id",
 }
+
+
+def parse_config(argv):
+    """Set up odoo.tools.config from command line arguments."""
+    try:
+        import openerp as odoo
+    except ImportError:
+        import odoo
+    logging.getLogger().handlers = []
+    odoo.netsvc._logger_init = False
+    odoo.tools.config.parse_config(argv)
 
 
 def enable(db=None, module_name=None, color=True, bg_editor=False):
