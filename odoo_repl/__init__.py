@@ -53,7 +53,16 @@ FIELD_BLACKLIST = {
 
 
 def enable(db=None, module_name=None, color=True, bg_editor=False):
-    """Enable all the bells and whistles."""
+    """Enable all the bells and whistles.
+
+    :param db: Either an Odoo environment object, an Odoo cursor, a database
+               name, or ``None`` to guess the database to use.
+    :param module_name: Either a module, the name of a module, or ``None`` to
+                        install into the module of the caller.
+    :param bool color: Enable colored output.
+    :param bool bg_editor: Don't wait for text editors invoked by ``.edit()``
+                           to finish.
+    """
     global env
     global odoo
     global edit_bg
@@ -72,7 +81,10 @@ def enable(db=None, module_name=None, color=True, bg_editor=False):
             print("Warning: can't determine module_name, assuming '__main__'")
             module_name = "__main__"
 
-    __main__ = importlib.import_module(module_name)
+    if isinstance(module_name, Text):
+        __main__ = importlib.import_module(module_name)
+    else:
+        __main__ = module_name
 
     if db is None or isinstance(db, Text):
         db_name = db or odoo.tools.config["db_name"]
