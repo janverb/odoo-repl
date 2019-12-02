@@ -8,6 +8,7 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import atexit
 import collections
 import importlib
 import inspect
@@ -115,6 +116,8 @@ def enable(db=None, module_name=None, color=True, bg_editor=False):
     else:
         raise TypeError(db)
 
+    atexit.register(env.cr.close)
+
     edit_bg = bg_editor
 
     if sys.version_info < (3, 0):
@@ -164,7 +167,6 @@ def disable_color():
 
 def readline_init(history=None):
     """Set up readline history and completion. Unnecessary in Python 3."""
-    import atexit
     import readline
     import rlcompleter  # noqa: F401
 
@@ -410,6 +412,8 @@ def field_repr(field):
         if hasattr(func, "__func__"):
             func = func.__func__
         parts.append("Computed by {}".format(blue(func.__name__)))
+    elif type(getattr(field, "column", None)).__name__ == "function":
+        parts.append("Computed by {}".format(blue(field.column._fnct.__name__)))
 
     if getattr(field, "inverse_fields", False):
         parts.append(

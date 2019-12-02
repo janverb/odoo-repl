@@ -47,6 +47,11 @@ def main():
         help="Allow editors to run in the background",
     )
     parser.add_argument(
+        "--no-interactive",
+        action="store_true",
+        help="Immediately quit odoo-repl after starting",
+    )
+    parser.add_argument(
         "directory", type=str, default=".", nargs="?", help="Buildout directory to use"
     )
     parser.add_argument(
@@ -126,9 +131,11 @@ odoo_repl.enable(session.env, __name__, color={color!r}, bg_editor={bg_editor!r}
         maybe_interp = os.path.join(os.path.dirname(original_interp), interp)
         if os.path.isfile(maybe_interp):
             interp = maybe_interp
-        argv = [interp, "--no-banner", "-i"]
+        argv = [interp, "--no-banner"]
     else:
-        argv = [interp, "-i"]
+        argv = [interp]
+    if not args.no_interactive:
+        argv.append("-i")
     if args.args:
         argv.extend(shlex.split(args.args))
     argv.extend(["--", executable, "-c", cmd])

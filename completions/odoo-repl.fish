@@ -12,3 +12,4 @@ complete -c odoo-repl -s a -l args -x -d "Extra flags to pass to the interpreter
 complete -c odoo-repl -l no-color -d "Disable colored output"
 complete -c odoo-repl -l bg-editor -d "Allow editors to run in the background"
 complete -c odoo-repl -l interpreter -r -d "Use another interpreter"
+complete -c odoo-repl -l no-interactive -d "Immediately quit odoo-repl after starting"
