@@ -10,7 +10,7 @@ import sys
 import odoo_repl
 
 
-def main():
+def main(argv=sys.argv[1:]):
     # TODO: flags for disabling features
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -57,21 +57,23 @@ def main():
     parser.add_argument(
         "extra_args", nargs="*", help="Extra configuration arguments you'd pass to odoo"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.ipython and args.interpreter:
         print("--ipython and --interpreter can't be used together")
-        sys.exit(1)
+        return 1
 
-    if not os.path.isdir(args.directory):
-        print("Directory {!r} does not exist".format(args.directory))
-        sys.exit(1)
+    directory = os.path.abspath(args.directory)
 
-    executable = os.path.join(args.directory, "bin/python_odoo")
+    if not os.path.isdir(directory):
+        print("Directory {!r} does not exist".format(directory))
+        return 1
+
+    executable = os.path.join(directory, "bin/python_odoo")
 
     if not os.path.isfile(executable):
-        print("{!r} is not a buildout directory".format(args.directory))
-        sys.exit(1)
+        print("{!r} is not a buildout directory".format(directory))
+        return 1
 
     with open(executable) as f:
         line = f.readline().strip()
@@ -143,4 +145,4 @@ odoo_repl.enable(session.env, __name__, color={color!r}, bg_editor={bg_editor!r}
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main(sys.argv[1:]))

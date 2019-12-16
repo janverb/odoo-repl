@@ -14,6 +14,7 @@ import importlib
 import inspect
 import logging
 import os
+import pdb
 import pprint
 import random
 import re
@@ -94,7 +95,9 @@ def enable(db=None, module_name=None, color=True, bg_editor=False):
             print("Warning: can't determine module_name, assuming '__main__'")
             module_name = "__main__"
 
-    if isinstance(module_name, Text):
+    if module_name in {"__builtin__", "builtins"}:
+        __main__ = builtins
+    elif isinstance(module_name, Text):
         __main__ = importlib.import_module(module_name)
     else:
         __main__ = module_name
@@ -102,10 +105,12 @@ def enable(db=None, module_name=None, color=True, bg_editor=False):
     if db is None or isinstance(db, Text):
         db_name = db or odoo.tools.config["db_name"]
         if not db_name:
-            raise ValueError(
-                "Can't determine database name. Run with `-d dbname`"
-                "or pass it as the first argument to odoo_repl.enable()."
-            )
+            if env is None:
+                raise ValueError(
+                    "Can't determine database name. Run with `-d dbname` "
+                    "or pass it as the first argument to odoo_repl.enable()."
+                )
+            db_name = env.cr.dbname
         env = odoo.api.Environment(
             odoo.sql_db.db_connect(db_name).cursor(), odoo.SUPERUSER_ID, {}
         )
@@ -129,6 +134,8 @@ def enable(db=None, module_name=None, color=True, bg_editor=False):
     odoo.models.BaseModel.print_ = odoo_print
     odoo.fields.Field._repr_pretty_ = _Field_repr_pretty_
     odoo.fields.Field.edit_ = edit
+
+    pdb.Pdb.displayhook = _Pdb_displayhook
 
     to_install = {
         "self": env.user,
@@ -268,11 +275,11 @@ def odoo_repr(obj):
         return repr(obj)
 
 
-def odoo_print(obj):
+def odoo_print(obj, **kwargs):
     if _is_record(obj) and len(obj) > 1:
-        print("\n\n".join(record_repr(record) for record in obj))
+        print("\n\n".join(record_repr(record) for record in obj), **kwargs)
     else:
-        print(odoo_repr(obj))
+        print(odoo_repr(obj), **kwargs)
 
 
 def model_repr(obj):
@@ -310,7 +317,7 @@ def model_repr(obj):
     if delegated:
         buckets = collections.defaultdict(list)
         for field in delegated:
-            buckets[field.related[:-1]].append(
+            buckets[tuple(field.related[:-1])].append(
                 green(field.name)
                 if field.related[-1] == field.name
                 else "{} (.{})".format(green(field.name), field.related[-1])
@@ -411,7 +418,7 @@ def field_repr(field):
         func = field.compute
         if hasattr(func, "__func__"):
             func = func.__func__
-        parts.append("Computed by {}".format(blue(func.__name__)))
+        parts.append("Computed by {}".format(blue(getattr(func, "__name__", func))))
     elif type(getattr(field, "column", None)).__name__ == "function":
         parts.append("Computed by {}".format(blue(field.column._fnct.__name__)))
 
@@ -665,6 +672,20 @@ def displayhook(obj):
         builtins._ = obj
 
 
+if PY3:
+
+    def _Pdb_displayhook(self, obj):
+        if obj is not None:
+            self.message(odoo_repr(obj))
+
+
+else:
+
+    def _Pdb_displayhook(self, obj):
+        if obj is not None:
+            print(odoo_repr(obj))
+
+
 class EnvProxy(object):
     """A wrapper around an odoo.api.Environment object.
 
@@ -698,6 +719,10 @@ class EnvProxy(object):
         if ind not in env.registry:
             raise IndexError("Model '{}' does not exist".format(ind))
         return ModelProxy(ind)
+
+    def __iter__(self):
+        for mod in env.registry:
+            yield self[mod]
 
     def __eq__(self, other):
         return self.__class__ is other.__class__
@@ -752,6 +777,9 @@ class ModelProxy(object):
             if mod.startswith(self._path + ".")
         )
         return sorted(listing)
+
+    def __iter__(self):
+        return iter(self._real._fields.values())
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, self._path)
