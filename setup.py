@@ -14,6 +14,7 @@ setuptools.setup(
     description="Enhanced interactive Odoo buildout prompt",
     url="https://github.com/janverb/odoo-repl",
     packages=setuptools.find_packages(),
+    package_data={"odoo_repl": ["py.typed"]},
     entry_points={"console_scripts": ["odoo-repl = odoo_repl.run:main"]},
     license="AGPLv3+",
     classifiers=[
