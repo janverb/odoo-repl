@@ -35,6 +35,12 @@
 # - import, monkeypatch, then start normal odoo-bin shell entrypoint
 #   - probably the cleanest
 
+# add tests:
+# - module odoo_repl.tests
+# - CLI flag to run odoo_repl.tests.run_tests(); sys.exit()
+# - checks for Odoo version, presence of demo data, etc.
+# - model after TransactionCase, with new namespace + transaction for each test
+
 from __future__ import print_function
 
 import atexit
@@ -64,8 +70,10 @@ from odoo_repl import color
 from odoo_repl.imports import (
     MYPY,
     PY3,
+    abc,
     odoo,
     t,
+    overload,
     Text,
     TextLike,
     builtins,
@@ -275,7 +283,35 @@ def _color_repr(owner, field_name):
         return repr(obj)
 
 
+if MYPY:
+    T = t.TypeVar("T", odoo.models.BaseModel, odoo.fields.Field, t.Callable)
+
+
+@overload
 def _unwrap(obj):
+    # type: (ModelProxy) -> odoo.models.BaseModel
+    pass
+
+
+@overload  # noqa: F811
+def _unwrap(obj):
+    # type: (FieldProxy) -> odoo.fields.Field
+    pass
+
+
+@overload  # noqa: F811
+def _unwrap(obj):
+    # type: (MethodProxy) -> t.Callable
+    pass
+
+
+@overload  # noqa: F811
+def _unwrap(obj):
+    # type: (T) -> T
+    pass
+
+
+def _unwrap(obj):  # noqa: F811
     if isinstance(obj, (ModelProxy, MethodProxy, FieldProxy)):
         obj = obj._real
     return obj
@@ -289,7 +325,7 @@ def odoo_repr(obj):
         return method_repr(obj)
     elif isinstance(obj, FieldProxy):
         return field_repr(obj)
-    elif _is_record(obj):
+    elif isinstance(obj, odoo.models.BaseModel):
         return record_repr(obj)
     elif isinstance(obj, (odoo.fields.Field, FieldProxy)):
         return field_repr(obj)
@@ -316,6 +352,7 @@ def _fmt_properties(field):
 
 
 def model_repr(obj):
+    # type: (t.Union[ModelProxy, odoo.models.BaseModel]) -> t.Text
     """Summarize a model's fields."""
     if isinstance(obj, ModelProxy) and obj._real is None:
         return repr(obj)
@@ -357,11 +394,12 @@ def model_repr(obj):
         buckets = collections.defaultdict(
             list
         )  # type: t.DefaultDict[t.Tuple[t.Text, ...], t.List[t.Text]]
-        for field in delegated:
-            buckets[tuple(field.related[:-1])].append(
-                color.field(field.name)
-                if field.related[-1] == field.name
-                else "{} (.{})".format(color.field(field.name), field.related[-1])
+        for f_obj in delegated:
+            assert f_obj.related
+            buckets[tuple(f_obj.related[:-1])].append(
+                color.field(f_obj.name)
+                if f_obj.related[-1] == f_obj.name
+                else "{} (.{})".format(color.field(f_obj.name), f_obj.related[-1])
             )
         parts.append("")
         for related_field, field_names in buckets.items():
@@ -389,12 +427,14 @@ def _xml_ids(obj):
 
 
 def _xml_id_tag(obj):
+    # type: (odoo.models.BaseModel) -> t.Text
     return "".join(
         " (ref.{}.{})".format(module, name) for module, name in _xml_ids(obj)
     )
 
 
 def _record_header(obj):
+    # type: (odoo.models.BaseModel) -> t.Text
     header = color.header("{}[{!r}]".format(obj._name, obj.id)) + _xml_id_tag(obj)
     if obj.env.uid != 1:
         header += " (as {})".format(UserBrowser._repr_for_value(obj.env.user.login))
@@ -402,6 +442,7 @@ def _record_header(obj):
 
 
 def _ids_repr(idlist):
+    # type: (t.Iterable[object]) -> t.Text
     fragments = []
     news = 0
     for ident in idlist:
@@ -418,6 +459,7 @@ def _ids_repr(idlist):
 
 
 def record_repr(obj):
+    # type: (odoo.models.BaseModel) -> t.Text
     """Display all of a record's fields."""
     obj = _unwrap(obj)
 
@@ -536,8 +578,7 @@ def field_repr(field):
     """List detailed information about a field."""
     # TODO:
     # - .groups, .copy, .states, .inverse, .column[12]
-    if isinstance(field, FieldProxy):
-        field = field._real
+    field = _unwrap(field)
     model = env[field.model_name]
     record = env[u"ir.model.fields"].search(
         [("model", "=", field.model_name), ("name", "=", field.name)]
@@ -962,7 +1003,12 @@ class EnvProxy(object):
         return list(env.registry)
 
 
-def _BaseModel_create_(self, vals=(), **fields):
+def _BaseModel_create_(
+    self,  # type: odoo.models.BaseModel
+    vals=None,  # type: t.Optional[t.Dict[str, t.Any]]
+    **fields  # type: t.Any
+):
+    # type: (...) -> odoo.models.BaseModel
     """Create a new record, optionally with keyword arguments.
 
     .create_(x='test', y=<some record>) is typically equivalent to
@@ -971,7 +1017,8 @@ def _BaseModel_create_(self, vals=(), **fields):
 
     If you make a typo in a field name you get a proper error.
     """
-    fields.update(vals)
+    if vals:
+        fields.update(vals)
     for key, value in fields.items():
         if key not in self._fields:
             raise TypeError("Field '{}' does not exist".format(key))
@@ -993,7 +1040,7 @@ def _parse_search_query(
     args,  # type: t.Tuple[object, ...]
     fields,  # type: t.Mapping[str, object]
 ):
-    # type: (...) -> t.List[t.Tuple[object, object, object]]
+    # type: (...) -> t.List[t.Tuple[str, str, object]]
     clauses = []
     state = "OUT"
     curr = None  # type: t.Optional[t.List[t.Any]]
@@ -1029,7 +1076,13 @@ def _parse_search_query(
     return clauses
 
 
-def _BaseModel_search_(self, *args, **fields):
+def _BaseModel_search_(
+    self,  # type: odoo.models.BaseModel
+    *args,  # type: object
+    **fields  # type: t.Any
+):
+    # type: (...) -> odoo.models.BaseModel
+    # if count=True, this returns an int, but that may not be worth annotating
     """Perform a quick and dirty search.
 
     .search_(x='test', y=<some record>) is roughly equivalent to
@@ -1039,11 +1092,11 @@ def _BaseModel_search_(self, *args, **fields):
     # TODO:
     # - inspect fields
     # - handle 2many relations
-    offset = fields.pop("offset", 0)
-    limit = fields.pop("limit", None)
-    order = fields.pop("order", "id")
-    count = fields.pop("count", False)
-    shuf = fields.pop("shuf", None)
+    offset = fields.pop("offset", 0)  # type: int
+    limit = fields.pop("limit", None)  # type: t.Optional[int]
+    order = fields.pop("order", "id")  # type: t.Optional[t.Text]
+    count = fields.pop("count", False)  # type: bool
+    shuf = fields.pop("shuf", None)  # type: t.Optional[int]
     if shuf and not (args or fields or offset or limit or count):
         # Doing a search seeds the cache with IDs, which tanks performance
         # Odoo will compute fields on many records at once even though you
@@ -1097,6 +1150,7 @@ class ModelProxy(object):
         self._nocomplete = nocomplete
 
     def __getattr__(self, attr):
+        # type: (t.Text) -> object
         if attr.startswith("__"):
             raise AttributeError
         if not self._nocomplete:
@@ -1148,21 +1202,30 @@ class ModelProxy(object):
         return sorted(listing)
 
     def __iter__(self):
+        # type: () -> t.Iterator[FieldProxy]
         assert self._real is not None
         for field in sorted(self._real._fields.values(), key=lambda f: f.name):
             yield FieldProxy(field)
 
     def __len__(self):
-        return self._(count=True)
+        # type: () -> int
+        assert self._real is not None
+        return self._real.search([], count=True)
 
     def mapped(self, *a, **k):
-        return self._().mapped(*a, **k)
+        # type: (t.Any, t.Any) -> t.Any
+        assert self._real is not None
+        return self._real.search([]).mapped(*a, **k)
 
     def filtered(self, *a, **k):
-        return self._().filtered(*a, **k)
+        # type: (t.Any, t.Any) -> odoo.models.BaseModel
+        assert self._real is not None
+        return self._real.search([]).filtered(*a, **k)
 
     def filtered_(self, *a, **k):
-        return self._().filtered_(*a, **k)
+        # type: (t.Any, t.Any) -> odoo.models.BaseModel
+        assert self._real is not None
+        return self._real.search([]).filtered_(*a, **k)  # type: ignore
 
     def __repr__(self):
         if self._real is not None:
@@ -1175,9 +1238,12 @@ class ModelProxy(object):
         else:
             printer.text(repr(self))
 
-    def __getitem__(self, ind):
+    def __getitem__(
+        self, ind  # type: t.Union[t.Iterable[int], t.Text, int]
+    ):
+        # type: (...) -> t.Union[MethodProxy, FieldProxy, odoo.models.BaseModel]
         if self._real is None:
-            return KeyError("Model '{}' does not exist".format(self._path))
+            raise KeyError("Model '{}' does not exist".format(self._path))
         if not ind:
             return self._real
         if isinstance(ind, Text):
@@ -1187,7 +1253,8 @@ class ModelProxy(object):
             if callable(thing):
                 return MethodProxy(thing, self._real, ind)
             return thing
-        if isinstance(ind, (list, set, types.GeneratorType)):
+        if isinstance(ind, abc.Iterable):
+            assert not isinstance(ind, Text)
             ind = tuple(ind)
         if not isinstance(ind, tuple):
             ind = (ind,)
@@ -1204,30 +1271,35 @@ class ModelProxy(object):
         return self._real.browse(ind)
 
     def _ipython_key_completions_(self):
+        # type: () -> t.List[t.Text]
         assert self._real is not None
         return list(self._real._fields)
 
     def _ensure_real(self):
+        # type: () -> None
         if self._real is None:
             raise TypeError("Model '{}' does not exist".format(self._path))
 
     def _all_ids_(self):
+        # type: () -> t.List[int]
         """Get all record IDs in the database."""
         self._ensure_real()
         return sql("SELECT id FROM {}".format(env[self._path]._table))
 
     def mod_(self):
+        # type: () -> odoo.models.IrModel
         """Get the ir.model record of the model."""
         self._ensure_real()
         return env[u"ir.model"].search([("model", "=", self._path)])
 
     def shuf_(self, num=1):
+        # type: (int) -> odoo.models.BaseModel
         """Return a random record, or multiple."""
-        self._ensure_real()
+        assert self._real is not None
         return _BaseModel_search_(self._real, shuf=num)
 
     def source_(self, location=None):
-        # TODO: print filename header
+        # type: (t.Optional[t.Text]) -> None
         assert self._real is not None
         for cls in type(self._real).__bases__:
             name = getattr(cls, "_name", None)
@@ -1239,6 +1311,7 @@ class ModelProxy(object):
             print(color.highlight(inspect.getsource(cls)))
 
     def rules_(self, user=None):
+        # type: (t.Optional[odoo.models.ResUsers]) -> None
         # TODO: is it possible to collapse the rules into a single policy for a user?
         print(
             "\n\n".join(
@@ -1296,6 +1369,7 @@ class ModelProxy(object):
         return _PrettySoup._from_string(form)
 
     def sql_(self):
+        # type: () -> None
         """Display basic PostgreSQL information about stored fields."""
         # TODO: make more informative
         assert self._real is not None
@@ -1336,6 +1410,7 @@ class ModelProxy(object):
         subprocess.Popen(argv).wait()
 
     def methods_(self):
+        # type: () -> None
         self._ensure_real()
         for cls in type(self._real).__bases__:
             meths = [
@@ -1458,7 +1533,8 @@ def _rule_repr(rule):
     else:
         parts.append(groups)
     parts.append(_crud_format(rule))
-    if rule.domain_force not in {False, "[]", "[(1, '=', 1)]", '[(1, "=", 1)]'}:
+    if rule.domain_force not in {None, False, "[]", "[(1, '=', 1)]", '[(1, "=", 1)]'}:
+        assert rule.domain_force
         parts.append(color.highlight(_domain_format(rule.domain_force)))
     return "\n".join(parts)
 
@@ -1478,6 +1554,7 @@ def _access_repr(access):
 
 
 def _domain_format(domain):
+    # type: (t.Text) -> t.Text
     context = {
         key: _Expressionizer(key) for key in env[u"ir.rule"]._eval_context().keys()
     }
@@ -1513,6 +1590,7 @@ class _Expressionizer(object):
         return self.__class__("{}[{!r}]".format(self._path, ind))
 
     def __iter__(self):
+        # type: () -> t.NoReturn
         raise TypeError
 
     def __call__(self, *args, **kwargs):
@@ -1994,6 +2072,7 @@ class Addon(object):
         subprocess.Popen(argv).wait()
 
     def __repr__(self):
+        # type: () -> str
         return "{}({!r})".format(self.__class__.__name__, self._module)
 
     def __str__(self):

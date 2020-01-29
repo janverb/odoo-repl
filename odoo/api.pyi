@@ -8,7 +8,7 @@ from odoo.sql_db import Cursor
 class Environment:
     cr: Cursor
     prefetch: Dict[Any, Any]  # Only some versions
-    user: models.BaseModel
+    user: models.ResUsers
     uid: int
     registry: Dict[Text, Any]
     def __init__(
@@ -19,6 +19,8 @@ class Environment:
     @overload
     def __getitem__(self, key: Literal["ir.rule"]) -> models.IrRule: ...
     @overload
+    def __getitem__(self, key: Literal["ir.model"]) -> models.IrModel: ...
+    @overload
     def __getitem__(self, key: Literal["ir.model.data"]) -> models.IrModelData: ...
     @overload
     def __getitem__(self, key: Literal["ir.model.fields"]) -> models.IrModelFields: ...
@@ -26,6 +28,8 @@ class Environment:
     def __getitem__(
         self, key: Literal["ir.module.module"]
     ) -> models.IrModuleModule: ...
+    @overload
+    def __getitem__(self, key: Literal["ir.translation"]) -> models.IrTranslation: ...
     @overload
     def __getitem__(self, key: Literal["res.groups"]) -> models.ResGroups: ...
     @overload

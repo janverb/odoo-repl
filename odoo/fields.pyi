@@ -5,6 +5,7 @@ class Field:
     model_name: Text
     comodel_name: Text
     type: Text
+    string: Text
     relational: bool
     compute: object
     column: Any

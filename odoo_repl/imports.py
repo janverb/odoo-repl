@@ -18,10 +18,19 @@ else:
             odoo = None
 
 
+if PY3:
+    from collections import abc
+else:
+    import collections as abc
+
 try:
     import typing as t
+    from typing import overload
 except ImportError:
     t = None  # type: ignore
+
+    def overload(func):
+        return func
 
 
 if PY3:
@@ -113,8 +122,10 @@ else:
 __all__ = (
     "MYPY",
     "PY3",
+    "abc",
     "odoo",
     "t",
+    "overload",
     "Text",
     "TextLike",
     "builtins",
