@@ -62,10 +62,10 @@ from datetime import datetime, date
 
 from odoo_repl import color
 from odoo_repl.imports import (
+    MYPY,
     PY3,
     odoo,
     t,
-    T_Text,
     Text,
     TextLike,
     builtins,
@@ -74,9 +74,12 @@ from odoo_repl.imports import (
 )
 from odoo_repl.opdb import set_trace, post_mortem, pm
 
+if MYPY:
+    import bs4
+
 __all__ = ("odoo_repr", "enable", "set_trace", "post_mortem", "pm")
 
-env = None  # type: odoo.api.Environment
+env = None  # type: odoo.api.Environment  # type: ignore
 edit_bg = False
 
 RE_FIELD = re.compile(
@@ -108,6 +111,7 @@ FIELD_BLACKLIST = {
 
 
 def parse_config(argv):
+    # type: (t.List[t.Text]) -> None
     """Set up odoo.tools.config from command line arguments."""
     logging.getLogger().handlers = []
     odoo.netsvc._logger_init = False
@@ -115,9 +119,9 @@ def parse_config(argv):
 
 
 def create_namespace(
-    db,  # type: t.Union[None, T_Text, odoo.sql_db.Cursor, odoo.api.Environment]
+    db,  # type: t.Union[None, t.Text, odoo.sql_db.Cursor, odoo.api.Environment]
 ):
-    # type: (...) -> t.Tuple[odoo.api.Environment, t.Dict[T_Text, t.Any]]
+    # type: (...) -> t.Tuple[odoo.api.Environment, t.Dict[t.Text, t.Any]]
     global env  # TODO
 
     if db is None or isinstance(db, Text):
@@ -152,7 +156,7 @@ def create_namespace(
         "emp": EmployeeBrowser(),
         "ref": DataBrowser(),
         "addons": AddonBrowser(),
-    }  # type: t.Dict[T_Text, t.Any]
+    }  # type: t.Dict[t.Text, t.Any]
     namespace.update({part: ModelProxy(part) for part in envproxy._base_parts()})
     if _xml_records is None:
         xml_thread = threading.Thread(target=xml_records)
@@ -213,7 +217,7 @@ def enable(db=None, module_name=None, color=True, bg_editor=False):
 
 
 def _color_repr(owner, field_name):
-    # type: (odoo.models.BaseModel, T_Text) -> T_Text
+    # type: (odoo.models.BaseModel, t.Text) -> t.Text
     """Return a color-coded representation of a record's field value."""
     # TODO: refactor, move most to odoo_repl.color
     if hasattr(owner.env, "prefetch"):  # Not all Odoo versions
@@ -278,7 +282,7 @@ def _unwrap(obj):
 
 
 def odoo_repr(obj):
-    # type: (object) -> T_Text
+    # type: (object) -> t.Text
     if isinstance(obj, ModelProxy):
         return model_repr(obj)
     elif isinstance(obj, MethodProxy):
@@ -287,7 +291,7 @@ def odoo_repr(obj):
         return field_repr(obj)
     elif _is_record(obj):
         return record_repr(obj)
-    elif _is_field(obj):
+    elif isinstance(obj, (odoo.fields.Field, FieldProxy)):
         return field_repr(obj)
     elif isinstance(obj, Addon):
         return str(obj)
@@ -304,7 +308,7 @@ def odoo_print(obj, **kwargs):
 
 
 def _fmt_properties(field):
-    # type: (odoo.fields.Field) -> T_Text
+    # type: (odoo.fields.Field) -> t.Text
     return "".join(
         attr[0] if getattr(field, attr, False) else " "
         for attr in ["required", "store", "default"]
@@ -352,7 +356,7 @@ def model_repr(obj):
     if delegated:
         buckets = collections.defaultdict(
             list
-        )  # type: t.DefaultDict[t.Tuple[T_Text, ...], t.List[T_Text]]
+        )  # type: t.DefaultDict[t.Tuple[t.Text, ...], t.List[t.Text]]
         for field in delegated:
             buckets[tuple(field.related[:-1])].append(
                 color.field(field.name)
@@ -373,11 +377,11 @@ def model_repr(obj):
 
 
 def _xml_ids(obj):
-    # type: (odoo.models.BaseModel) -> t.List[t.Tuple[T_Text, T_Text]]
+    # type: (odoo.models.BaseModel) -> t.List[t.Tuple[t.Text, t.Text]]
     # .get_external_id() returns at most one result per record
     return [
         (data_record.module, data_record.name)
-        for data_record in env["ir.model.data"].search(
+        for data_record in env[u"ir.model.data"].search(
             [("model", "=", obj._name), ("res_id", "=", obj.id)]
         )
         if data_record.module != "__export__"
@@ -465,8 +469,7 @@ def _find_computer(field):
     # type: (odoo.fields.Field) -> object
     if field.compute is not None:
         func = field.compute
-        if hasattr(func, "__func__"):
-            func = func.__func__
+        func = getattr(func, "__func__", func)
         if isinstance(func, Text):
             func = getattr(env[field.model_name], func)
         return func
@@ -476,7 +479,7 @@ def _find_computer(field):
 
 
 def _decipher_lambda(func):
-    # type: (types.FunctionType) -> T_Text
+    # type: (types.FunctionType) -> t.Text
     """Try to retrieve a lambda's source code. Very nasty.
 
     Signals failure by throwing random exceptions.
@@ -513,10 +516,11 @@ def _find_field_default(field):
         # Very nasty but works some of the time
         # Hopefully something better exists
         if (
-            callable(default)
+            isinstance(default, types.FunctionType)
             and default.__module__ in {"odoo.fields", "openerp.fields"}
             and default.__name__ == "<lambda>"
             and "value" in default.__code__.co_freevars
+            and default.__closure__
         ):
             default = default.__closure__[
                 default.__code__.co_freevars.index("value")
@@ -528,16 +532,17 @@ def _find_field_default(field):
 
 
 def field_repr(field):
-    # type: (t.Union[FieldProxy, odoo.fields.Field]) -> T_Text
+    # type: (t.Union[FieldProxy, odoo.fields.Field]) -> t.Text
     """List detailed information about a field."""
     # TODO:
     # - .groups, .copy, .states, .inverse, .column[12]
-    field = _unwrap(field)
+    if isinstance(field, FieldProxy):
+        field = field._real
     model = env[field.model_name]
-    record = env["ir.model.fields"].search(
+    record = env[u"ir.model.fields"].search(
         [("model", "=", field.model_name), ("name", "=", field.name)]
     )
-    parts = []  # type: t.List[T_Text]
+    parts = []  # type: t.List[t.Text]
     parts.append(
         "{} {} on {}".format(
             color.blue.bold(record.ttype),
@@ -572,7 +577,7 @@ def field_repr(field):
         else:
             parts[-1] += ": " + field.help
 
-    if getattr(field, "related", False):
+    if field.related:
         parts.append("Delegated to {}".format(color.field(".".join(field.related))))
     elif getattr(field, "column", False) and type(field.column).__name__ == "related":
         parts.append("Delegated to {}".format(color.field(".".join(field.column.arg))))
@@ -649,6 +654,7 @@ def field_repr(field):
 
 
 def _find_decorators(method):
+    # type: (t.Any) -> t.Iterator[t.Text]
     if hasattr(method, "_constrains"):
         yield color.decorator("@api.constrains") + "({})".format(
             ", ".join(map(repr, method._constrains))
@@ -685,24 +691,25 @@ def _unpack_function(func):
 
 
 def _func_signature(func):
-    # type: (t.Callable) -> T_Text
+    # type: (t.Callable) -> t.Text
     if PY3:
         return str(inspect.signature(func))
     else:
         return inspect.formatargspec(*inspect.getargspec(func))
 
 
-def method_repr(method):
-    sources = _find_method_source(method)
-    model = method.model
-    name = method.name
+def method_repr(methodproxy):
+    # type: (MethodProxy) -> t.Text
+    sources = _find_method_source(methodproxy)
+    model = methodproxy.model
+    name = methodproxy.name
 
-    method = method._real
+    method = methodproxy._real
     decorators = list(_find_decorators(method))
     method = _unpack_function(method)
 
     signature = _func_signature(method)
-    doc = inspect.getdoc(method)  # type: t.Optional[T_Text]
+    doc = inspect.getdoc(method)  # type: t.Optional[t.Text]
     if not doc:
         # inspect.getdoc() can't deal with Odoo's unorthodox inheritance
         for cls in type(model).mro():
@@ -768,7 +775,7 @@ def edit(thing, index=-1, bg=None):
 
 
 def _format_source(source):
-    # type: (Source) -> T_Text
+    # type: (Source) -> t.Text
     module, fname, lnum = source
     if lnum is not None:
         return "{}: {}:{}".format(color.module(module), fname, lnum)
@@ -777,12 +784,12 @@ def _format_source(source):
 
 
 def _format_sources(sources):
-    # type: (t.Iterable[Source]) -> t.List[T_Text]
+    # type: (t.Iterable[Source]) -> t.List[t.Text]
     return [_format_source(source) for source in sources]
 
 
 def _module(cls):
-    # type: (t.Type) -> T_Text
+    # type: (t.Type) -> t.Text
     return getattr(cls, "_module", cls.__name__)
 
 
@@ -800,7 +807,7 @@ class Source(collections.namedtuple("Source", ("module", "fname", "lnum"))):
 
 
 def _get_source_loc(thing):
-    # type: (t.Type) -> t.Tuple[T_Text, int]
+    # type: (t.Type) -> t.Tuple[t.Text, int]
     return inspect.getsourcefile(thing) or "???", inspect.getsourcelines(thing)[1]
 
 
@@ -808,12 +815,12 @@ def _find_source(
     thing,  # type: (t.Union[odoo.models.BaseModel, odoo.fields.Field, MethodProxy])
 ):
     # type: (...) -> t.List[Source]
-    if _is_record(thing):
+    if isinstance(thing, odoo.models.BaseModel) and hasattr(thing, "_ids"):
         if not thing._ids:
             return _find_model_source(_unwrap(thing))
         else:
             return _find_record_source(thing)
-    elif _is_field(thing):
+    elif isinstance(thing, odoo.fields.Field):
         return _find_field_source(thing)
     elif isinstance(thing, MethodProxy):
         return _find_method_source(thing)
@@ -918,17 +925,17 @@ class EnvProxy(object):
         raise AttributeError
 
     def __dir__(self):
-        # type: () -> t.List[T_Text]
+        # type: () -> t.List[t.Text]
         if PY3:
             listing = set(super().__dir__())
         else:
-            listing = {"_base_parts"}
+            listing = {"_base_parts"}  # type: t.Set[t.Text]
         listing.update(self._base_parts())
         listing.update(attr for attr in dir(env) if not attr.startswith("__"))
         return sorted(listing)
 
     def _base_parts(self):
-        # type: () -> t.List[str]
+        # type: () -> t.List[t.Text]
         return list({mod.split(".", 1)[0] for mod in env.registry})
 
     def __repr__(self):
@@ -936,7 +943,7 @@ class EnvProxy(object):
         return "{}({!r})".format(self.__class__.__name__, env)
 
     def __getitem__(self, ind):
-        # type: (T_Text) -> ModelProxy
+        # type: (t.Text) -> ModelProxy
         if ind not in env.registry:
             raise KeyError("Model '{}' does not exist".format(ind))
         return ModelProxy(ind, nocomplete=True)
@@ -951,7 +958,7 @@ class EnvProxy(object):
         return self.__class__ is other.__class__
 
     def _ipython_key_completions_(self):
-        # type: () -> t.List[T_Text]
+        # type: () -> t.List[t.Text]
         return list(env.registry)
 
 
@@ -1082,6 +1089,7 @@ class ModelProxy(object):
     """
 
     def __init__(self, path, nocomplete=False):
+        # type: (t.Text, bool) -> None
         self._path = path
         self._real = env[path] if path in env.registry else None
         if nocomplete and self._real is None:
@@ -1097,8 +1105,8 @@ class ModelProxy(object):
                 return self.__class__(new)
             if any(m.startswith(new + ".") for m in env.registry):
                 return self.__class__(new)
-            if self._real is None:
-                raise AttributeError("Model '{}' does not exist".format(new))
+        if self._real is None:
+            raise AttributeError("Model '{}' does not exist".format(new))
         if attr in self._real._fields:
             return FieldProxy(self._real._fields[attr])
         thing = getattr(self._real, attr)
@@ -1116,7 +1124,7 @@ class ModelProxy(object):
             "sql_",
             "grep_",
             "methods_",
-        }
+        }  # type: t.Set[t.Text]
         if PY3:
             listing = set(super().__dir__())
         else:
@@ -1140,6 +1148,7 @@ class ModelProxy(object):
         return sorted(listing)
 
     def __iter__(self):
+        assert self._real is not None
         for field in sorted(self._real._fields.values(), key=lambda f: f.name):
             yield FieldProxy(field)
 
@@ -1195,7 +1204,7 @@ class ModelProxy(object):
         return self._real.browse(ind)
 
     def _ipython_key_completions_(self):
-        self._ensure_real()
+        assert self._real is not None
         return list(self._real._fields)
 
     def _ensure_real(self):
@@ -1210,7 +1219,7 @@ class ModelProxy(object):
     def mod_(self):
         """Get the ir.model record of the model."""
         self._ensure_real()
-        return env["ir.model"].search([("model", "=", self._path)])
+        return env[u"ir.model"].search([("model", "=", self._path)])
 
     def shuf_(self, num=1):
         """Return a random record, or multiple."""
@@ -1219,6 +1228,7 @@ class ModelProxy(object):
 
     def source_(self, location=None):
         # TODO: print filename header
+        assert self._real is not None
         for cls in type(self._real).__bases__:
             name = getattr(cls, "_name", None)
             if location is not None and _module(cls) != location:
@@ -1234,7 +1244,7 @@ class ModelProxy(object):
             "\n\n".join(
                 [
                     _access_repr(access)
-                    for access in env["ir.model.access"].search(
+                    for access in env[u"ir.model.access"].search(
                         [("model_id", "=", self.mod_().id)]
                     )
                     if access.active
@@ -1246,7 +1256,7 @@ class ModelProxy(object):
                 ]
                 + [
                     _rule_repr(rule)
-                    for rule in env["ir.rule"].search(
+                    for rule in env[u"ir.rule"].search(
                         [("model_id", "=", self.mod_().id)]
                     )
                     if rule.active
@@ -1262,28 +1272,24 @@ class ModelProxy(object):
             )
         )
 
-    def view_(self, user=None, **kwargs):
+    def view_(
+        self,
+        user=None,  # type: t.Optional[t.Union[t.Text, int, odoo.models.ResUsers]]
+        **kwargs  # type: t.Any
+    ):
+        # type: (...) -> t.Union[_PrettySoup, t.Text]
         """Build up a view as a user. Returns beautifulsoup of the XML.
 
         Takes the same arguments as ir.model.fields_view_get, notably
         view_id and view_type.
         """
+        assert self._real is not None
         context = kwargs.pop("context", None)
         kwargs.setdefault("view_type", "form")
         model = self._real
         if user is not None:
-            if isinstance(user, Text):
-                login = user
-                user = env["res.users"].search([("login", "=", login)])
-                if len(user) != 1:
-                    raise ValueError("No user {!r}".format(login))
-            if _is_record(user) and user._name != "res.users":
-                # TODO: handle viewing as group
-                if hasattr(user, "user_id"):
-                    user = user.user_id
-                else:
-                    raise ValueError("{!r} is not a user".format(user))
-            model = model.sudo(user)
+            # TODO: handle viewing as group
+            model = model.sudo(_to_user(user))
         if context is not None:
             model = model.with_context(context)
         form = model.fields_view_get(**kwargs)["arch"]
@@ -1292,6 +1298,7 @@ class ModelProxy(object):
     def sql_(self):
         """Display basic PostgreSQL information about stored fields."""
         # TODO: make more informative
+        assert self._real is not None
         with savepoint(env.cr):
             env.cr.execute("SELECT * FROM {} LIMIT 0;".format(self._real._table))
             columns = env.cr.description
@@ -1322,6 +1329,7 @@ class ModelProxy(object):
         TODO: GNU grep is assumed. If you use another implementation then your
         best option is to install one of the other tools listed above.
         """
+        assert self._real is not None
         # TODO: handle multiple classes in single file properly
         argv = _build_grep_argv(args, kwargs)
         argv.extend(fname for _module, fname, _lnum in _find_source(self._real))
@@ -1344,8 +1352,28 @@ class ModelProxy(object):
     _ = _BaseModel_search_
 
 
+def _to_user(user):
+    # type: (t.Union[odoo.models.BaseModel, t.Text, int]) -> odoo.models.ResUsers
+    if isinstance(user, Text):
+        login = user
+        user = env[u"res.users"].search([("login", "=", login)])
+        if len(user) != 1:
+            raise ValueError("No user {!r}".format(login))
+        return user
+    elif isinstance(user, int):
+        return env[u"res.users"].browse(user)
+    if not isinstance(user, odoo.models.BaseModel):
+        raise ValueError("Can't convert type of {!r} to user".format(user))
+    if user._name == "res.users":
+        return user  # type: ignore
+    candidate = getattr(user, "user_id", user)
+    if getattr(candidate, "_name", None) != "res.users":
+        raise ValueError("{!r} is not a user".format(candidate))
+    return candidate
+
+
 def _find_grep(default="grep"):
-    # type: (T_Text) -> t.List[str]
+    # type: (t.Text) -> t.List[t.Any]
     """Look for a grep-like program to use."""
     user_conf = os.environ.get("ODOO_REPL_GREP")
     if user_conf:
@@ -1358,7 +1386,7 @@ def _find_grep(default="grep"):
 
 
 def _build_grep_argv(args, kwargs):
-    # type: (t.Iterable[str], t.Mapping[str, object]) -> t.List[str]
+    # type: (t.Iterable[str], t.Mapping[str, object]) -> t.List[t.Text]
     argv = _find_grep()
     if argv[0] == "grep" and color.enabled:
         argv.append("--color=auto")
@@ -1380,6 +1408,7 @@ class _PrettySoup(object):
     """
 
     def __init__(self, soup):
+        # type: (bs4.BeautifulSoup) -> None
         self._real = soup
 
     @classmethod
@@ -1413,6 +1442,7 @@ class _PrettySoup(object):
 
 
 def _rule_repr(rule):
+    # type: (odoo.models.IrRule) -> t.Text
     parts = []
     parts.append(_record_header(rule))
     parts.append(color.display_name(rule.display_name))
@@ -1434,6 +1464,7 @@ def _rule_repr(rule):
 
 
 def _access_repr(access):
+    # type: (odoo.models.IrModelAccess) -> t.Text
     parts = []
     parts.append(_record_header(access))
     parts.append(color.display_name(access.display_name))
@@ -1448,7 +1479,7 @@ def _access_repr(access):
 
 def _domain_format(domain):
     context = {
-        key: _Expressionizer(key) for key in env["ir.rule"]._eval_context().keys()
+        key: _Expressionizer(key) for key in env[u"ir.rule"]._eval_context().keys()
     }
     try:
         # dont_inherit avoids ugly __future__ unicode_literals
@@ -1469,6 +1500,7 @@ class _Expressionizer(object):
     """
 
     def __init__(self, path):
+        # type: (t.Text) -> None
         self._path = path
 
     def __repr__(self):
@@ -1490,6 +1522,7 @@ class _Expressionizer(object):
 
 
 def _crud_format(rule):
+    # type: (t.Union[odoo.models.IrModelAccess, odoo.models.IrRule]) -> t.Text
     return ", ".join(
         color.permission(name) if perm else " " * len(name)
         for name, perm in [
@@ -1503,14 +1536,17 @@ def _crud_format(rule):
 
 class MethodProxy(object):
     def __init__(self, method, model, name):
+        # type: (t.Callable, odoo.models.BaseModel, t.Text) -> None
         self._real = method
         self.model = model
-        self.name = name
+        self.name = str(name)
 
     def __call__(self, *args, **kwargs):
+        # type: (t.Any, t.Any) -> t.Any
         return self._real(*args, **kwargs)
 
     def __getattr__(self, attr):
+        # type: (t.Text) -> t.Any
         if attr.startswith("__"):
             raise AttributeError
         return getattr(self._real, attr)
@@ -1537,6 +1573,7 @@ class MethodProxy(object):
     edit_ = edit
 
     def source_(self, location=None):
+        # type: (t.Optional[t.Text]) -> None
         for cls in type(self.model).mro()[1:]:
             module = _module(cls)
             if location is not None and location != module:
@@ -1613,7 +1650,7 @@ class MethodProxy(object):
 
 
 def _extract_field_source(fname, lnum):
-    # type: (T_Text, int) -> T_Text
+    # type: (t.Text, int) -> t.Text
     pieces = []
     depth = 0
     for line in iter(lambda: linecache.getline(fname, lnum), ""):
@@ -1632,6 +1669,7 @@ def _extract_field_source(fname, lnum):
 
 class FieldProxy(object):
     def __init__(self, field):
+        # type: (odoo.fields.Field) -> None
         self._real = field
 
     def __getattr__(self, attr):
@@ -1672,6 +1710,8 @@ class FieldProxy(object):
             get = getattr(func, "__get__", False)
             if get:
                 func = get(model)
+            if not callable(func):
+                return func
             return MethodProxy(func, model, name)
         return func
 
@@ -1689,7 +1729,7 @@ class FieldProxy(object):
 
 
 def sql(query, *args):
-    # type: (T_Text, object) -> t.List[t.Any]
+    # type: (t.Text, object) -> t.List[t.Any]
     """Execute a SQL query and try to make the result nicer.
 
     Optimized for ease of use, at the cost of performance and boringness.
@@ -1703,7 +1743,7 @@ def sql(query, *args):
 
 
 def browse(url):
-    # type: (T_Text) -> odoo.models.BaseModel
+    # type: (t.Text) -> odoo.models.BaseModel
     """Take a browser form URL and figure out its record."""
     # TODO: handle other views more intelligently
     #       perhaps based on the user?
@@ -1718,6 +1758,7 @@ class RecordBrowser(object):
     _abbrev = NotImplemented
 
     def __getattr__(self, attr):
+        # type: (t.Text) -> odoo.models.BaseModel
         try:
             thing = env[self._model].search([(self._field, "=", attr)])
         except AttributeError as err:
@@ -1747,7 +1788,7 @@ class RecordBrowser(object):
 
     @classmethod
     def _repr_for_value(cls, ident):
-        # type: (T_Text) -> T_Text
+        # type: (t.Text) -> t.Text
         if ident and not keyword.iskeyword(ident):
             if PY3:
                 if ident.isidentifier():
@@ -1816,7 +1857,7 @@ class DataBrowser(object):
     """
 
     def __getattr__(self, attr):
-        # type: (T_Text) -> DataModuleBrowser
+        # type: (t.Text) -> DataModuleBrowser
         if not sql("SELECT id FROM ir_model_data WHERE module = %s LIMIT 1", attr):
             raise AttributeError("No module '{}'".format(attr))
         browser = DataModuleBrowser(attr)
@@ -1824,11 +1865,11 @@ class DataBrowser(object):
         return browser
 
     def __dir__(self):
-        # type: () -> t.List[T_Text]
+        # type: () -> t.List[t.Text]
         return sql("SELECT DISTINCT module FROM ir_model_data")
 
     def __call__(self, query):
-        # type: (T_Text) -> odoo.models.BaseModel
+        # type: (t.Text) -> odoo.models.BaseModel
         return env.ref(query)
 
     def __eq__(self, other):
@@ -1840,11 +1881,11 @@ class DataModuleBrowser(object):
     """Access data records within a module. Created by DataBrowser."""
 
     def __init__(self, module):
-        # type: (T_Text) -> None
+        # type: (t.Text) -> None
         self._module = module
 
     def __getattr__(self, attr):
-        # type: (T_Text) -> odoo.models.BaseModel
+        # type: (t.Text) -> odoo.models.BaseModel
         try:
             record = env.ref("{}.{}".format(self._module, attr))
         except ValueError as err:
@@ -1864,28 +1905,19 @@ class DataModuleBrowser(object):
         return record
 
     def __dir__(self):
-        # type: () -> t.List[T_Text]
+        # type: () -> t.List[t.Text]
         return sql("SELECT name FROM ir_model_data WHERE module = %s", self._module)
 
 
 def _is_record(obj):
     # type: (object) -> bool
     """Return whether an object is an Odoo record."""
-    if odoo is None:
-        return False
     return isinstance(obj, odoo.models.BaseModel) and hasattr(obj, "_ids")
-
-
-def _is_field(obj):
-    # type: (object) -> bool
-    if odoo is None:
-        return False
-    return isinstance(obj, odoo.fields.Field)
 
 
 class AddonBrowser(object):
     def __getattr__(self, attr):
-        # type: (T_Text) -> Addon
+        # type: (t.Text) -> Addon
         if not sql("SELECT name FROM ir_module_module WHERE name = %s", attr):
             raise AttributeError("No module '{}'".format(attr))
         addon = Addon(attr)
@@ -1893,7 +1925,7 @@ class AddonBrowser(object):
         return addon
 
     def __dir__(self):
-        # type: () -> t.List[T_Text]
+        # type: () -> t.List[t.Text]
         return sql("SELECT name FROM ir_module_module")
 
     def __iter__(self):
@@ -1904,9 +1936,9 @@ class AddonBrowser(object):
 
 class Addon(object):
     def __init__(self, module):
-        # type: (T_Text) -> None
+        # type: (t.Text) -> None
         self._module = module
-        self._record = None
+        self._record = None  # type: t.Optional[odoo.models.IrModuleModule]
 
     @property
     def manifest(self):
@@ -1920,9 +1952,11 @@ class Addon(object):
 
     @property
     def record(self):
-        # type: () -> odoo.models.BaseModel
+        # type: () -> odoo.models.IrModuleModule
         if self._record is None:
-            self._record = env["ir.module.module"].search([("name", "=", self._module)])
+            self._record = env[u"ir.module.module"].search(
+                [("name", "=", self._module)]
+            )
         return self._record
 
     @property
@@ -1933,9 +1967,9 @@ class Addon(object):
         return [
             ModelProxy(name, nocomplete=True)
             for name in (
-                env["ir.model"]
+                env[u"ir.model"]
                 .browse(
-                    env["ir.model.data"]
+                    env[u"ir.model.data"]
                     .search([("model", "=", "ir.model"), ("module", "=", self._module)])
                     .mapped("res_id")
                 )
@@ -1945,7 +1979,7 @@ class Addon(object):
 
     @property
     def path(self):
-        # type: () -> str
+        # type: () -> t.Text
         mod_path = odoo.modules.module.get_module_path(self._module)
         if not mod_path:
             raise RuntimeError("Can't find path of module {!r}".format(self._module))
@@ -1963,11 +1997,12 @@ class Addon(object):
         return "{}({!r})".format(self.__class__.__name__, self._module)
 
     def __str__(self):
+        # type: () -> str
         # TODO: integrate with displayhooks (odoo_repr?)
         defined_models = (
-            env["ir.model"]
+            env[u"ir.model"]
             .browse(
-                env["ir.model.data"]
+                env[u"ir.model.data"]
                 .search([("model", "=", "ir.model"), ("module", "=", self._module)])
                 .mapped("res_id")
             )
@@ -2030,13 +2065,15 @@ class RecordDef(collections.namedtuple("RecordDef", ("module", "fname", "elem"))
     __slots__ = ()
 
     def to_source(self):
+        # type: () -> Source
         return Source(module=self.module, fname=self.fname, lnum=self.elem.sourceline)
 
 
-_xml_records = None  # type: t.Optional[t.DefaultDict[T_Text, t.List[RecordDef]]]
+_xml_records = None  # type: t.Optional[t.DefaultDict[t.Text, t.List[RecordDef]]]
 
 
 def xml_records():
+    # type: () -> t.DefaultDict[t.Text, t.List[RecordDef]]
     import lxml.etree
 
     global _xml_records
@@ -2050,6 +2087,8 @@ def xml_records():
     ):
         manifest = odoo.modules.module.load_information_from_description_file(module)
         path = odoo.modules.module.get_module_path(module)
+        if not path:
+            continue
         data_files = list(manifest.get("data", ()))
         if demo:
             data_files.extend(manifest.get("demo", ()))
@@ -2073,7 +2112,7 @@ def xml_records():
 
 
 def _BaseModel_source_(record, location=None, context=False):
-    # type: (odoo.model.BaseModel, t.Optional[T_Text], bool) -> None
+    # type: (odoo.models.BaseModel, t.Optional[t.Text], bool) -> None
     import lxml.etree
 
     for rec_id in _xml_ids(record):
@@ -2107,7 +2146,7 @@ def grep_(*args, **kwargs):
 
 class _AttributableDict(dict):
     def __getattr__(self, attr):
-        # type: (T_Text) -> t.Any
+        # type: (t.Text) -> t.Any
         try:
             val = self[attr]
         except KeyError:
@@ -2175,7 +2214,7 @@ _savepoint_count = itertools.count()
 
 @contextlib.contextmanager
 def savepoint(cr):
-    # type: (odoo.sql_db.Cursor) -> t.Iterator[T_Text]
+    # type: (odoo.sql_db.Cursor) -> t.Iterator[t.Text]
     name = "odoo_repl_savepoint_{}".format(next(_savepoint_count))
     cr.execute("SAVEPOINT {}".format(name))
     try:
@@ -2188,27 +2227,27 @@ def savepoint(cr):
 
 
 def translate(text):
-    # type: (T_Text) -> None
-    translations = env["ir.translation"].search(
+    # type: (t.Text) -> None
+    translations = env[u"ir.translation"].search(
         ["|", ("src", "=", text), ("value", "=", text)]
     )
     if not translations:
         text = "%" + text + "%"
-        translations = env["ir.translation"].search(
+        translations = env[u"ir.translation"].search(
             ["|", ("src", "ilike", text), ("value", "ilike", text)]
         )
     odoo_print(translations)
 
 
 try:
-    odoo.models.BaseModel._repr_pretty_ = _BaseModel_repr_pretty_
-    odoo.models.BaseModel.edit_ = edit
-    odoo.models.BaseModel.print_ = odoo_print
-    odoo.models.BaseModel.search_ = _BaseModel_search_
-    odoo.models.BaseModel.create_ = _BaseModel_create_
-    odoo.models.BaseModel.filtered_ = _BaseModel_filtered_
-    odoo.models.BaseModel.source_ = _BaseModel_source_
-    odoo.fields.Field._repr_pretty_ = _Field_repr_pretty_
-    odoo.fields.Field.edit_ = edit
+    odoo.models.BaseModel._repr_pretty_ = _BaseModel_repr_pretty_  # type: ignore
+    odoo.models.BaseModel.edit_ = edit  # type: ignore
+    odoo.models.BaseModel.print_ = odoo_print  # type: ignore
+    odoo.models.BaseModel.search_ = _BaseModel_search_  # type: ignore
+    odoo.models.BaseModel.create_ = _BaseModel_create_  # type: ignore
+    odoo.models.BaseModel.filtered_ = _BaseModel_filtered_  # type: ignore
+    odoo.models.BaseModel.source_ = _BaseModel_source_  # type: ignore
+    odoo.fields.Field._repr_pretty_ = _Field_repr_pretty_  # type: ignore
+    odoo.fields.Field.edit_ = edit  # type: ignore
 except AttributeError:
     pass

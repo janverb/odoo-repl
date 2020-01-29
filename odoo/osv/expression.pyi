@@ -1,0 +1,3 @@
+from typing import Any
+
+def normalize_domain(expr: Any) -> Any: ...

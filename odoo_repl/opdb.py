@@ -8,7 +8,7 @@ import types
 
 import odoo_repl
 
-from odoo_repl.imports import PY3, odoo, t, T_Text
+from odoo_repl.imports import PY3, odoo, t
 
 if PY3:
     from collections.abc import Mapping
@@ -55,7 +55,7 @@ class OPdb(pdb.Pdb, object):
         super(OPdb, self).__init__(
             completekey=completekey, stdin=stdin, stdout=stdout, skip=skip
         )
-        self.repl_namespace = {}  # type: t.Dict[T_Text, t.Any]
+        self.repl_namespace = {}  # type: t.Dict[t.Text, t.Any]
         self._real_curframe_locals = None  # type: t.Optional[t.Mapping]
         self.env = None  # type: t.Optional[odoo.api.Environment]
         if not hasattr(self, "curframe_locals"):

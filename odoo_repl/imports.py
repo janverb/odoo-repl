@@ -5,25 +5,23 @@ import sys
 
 PY3 = sys.version_info >= (3,)
 
-try:
-    import openerp as odoo
-except ImportError:
+MYPY = False
+if MYPY:
+    import odoo
+else:
     try:
-        import odoo
+        import openerp as odoo
     except ImportError:
-        odoo = None
+        try:
+            import odoo
+        except ImportError:
+            odoo = None
 
 
 try:
     import typing as t
-
-    if PY3:
-        T_Text = str
-    else:
-        T_Text = t.Union[str, unicode]  # noqa: F821
 except ImportError:
     t = None  # type: ignore
-    T_Text = None  # type: ignore
 
 
 if PY3:
@@ -100,7 +98,7 @@ else:
             # what file suffixes are executable, so just pass on cmd as-is.
             files = [cmd]
 
-        seen = set()  # type: t.Set[T_Text]
+        seen = set()  # type: t.Set[t.Text]
         for dir in path:
             normdir = os.path.normcase(dir)
             if normdir not in seen:
@@ -113,10 +111,10 @@ else:
 
 
 __all__ = (
+    "MYPY",
     "PY3",
     "odoo",
     "t",
-    "T_Text",
     "Text",
     "TextLike",
     "builtins",
