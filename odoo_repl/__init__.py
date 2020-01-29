@@ -262,7 +262,7 @@ def _color_repr(owner, field_name):
         if not obj._ids:
             return color.missing("{}[]".format(obj._name))
         if len(obj._ids) > 10:
-            return color.record("{} × {}".format(obj._name, len(obj._ids)))
+            return color.record(u"{} × {}".format(obj._name, len(obj._ids)))
         try:
             if obj._name == "res.users":
                 return ", ".join(
@@ -470,7 +470,7 @@ def _ids_repr(idlist):
         if news == 1:
             fragments.append("NewId")
         else:
-            fragments.append("NewId × {}".format(news))
+            fragments.append(u"NewId × {}".format(news))
     return ", ".join(fragments)
 
 
@@ -673,14 +673,14 @@ def field_repr(field):
         show_literal = False
 
         if getattr(default, "__module__", None) in {"odoo.fields", "openerp.fields"}:
-            default = color.purple("(Unknown)")
+            default = color.purple.bold("(Unknown)")
             show_literal = True
 
         try:
             if getattr(default, "__name__", None) == "<lambda>":
                 assert isinstance(default, types.FunctionType)
                 source = _decipher_lambda(default)
-                default = color.purple(source)
+                default = color.purple.bold(source)
                 show_literal = True
         except Exception:
             pass

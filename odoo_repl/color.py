@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import textwrap
 
 from odoo_repl.imports import odoo, t
