@@ -117,6 +117,22 @@ FIELD_BLACKLIST = {
     "password_crypt",
 }
 
+# Copied from odoo.tools.convert.xml_import.__init__ (Odoo 8)
+# There may be false positives, I didn't check them all
+RECORD_TAGS = [
+    "record",
+    "delete",
+    "function",
+    "menuitem",
+    "template",
+    "workflow",
+    "report",
+    "ir_set",
+    "act_window",
+    "url",
+    "assert",
+]
+
 
 def parse_config(argv):
     # type: (t.List[t.Text]) -> None
@@ -2179,15 +2195,16 @@ def xml_records():
             if not os.path.isfile(fname):
                 continue
             tree = lxml.etree.parse(fname)
-            for record in tree.findall("//record"):
-                if "id" not in record.attrib:
-                    continue
-                rec_id = record.attrib["id"]
-                if "." not in rec_id:
-                    rec_id = module + "." + rec_id
-                _xml_records[rec_id].append(
-                    RecordDef(module=module, fname=fname, elem=record)
-                )
+            for tag in RECORD_TAGS:
+                for record in tree.iterfind("//" + tag):
+                    if "id" not in record.attrib:
+                        continue
+                    rec_id = record.attrib["id"]
+                    if "." not in rec_id:
+                        rec_id = module + "." + rec_id
+                    _xml_records[rec_id].append(
+                        RecordDef(module=module, fname=fname, elem=record)
+                    )
     return _xml_records
 
 
