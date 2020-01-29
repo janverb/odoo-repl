@@ -882,7 +882,8 @@ def _find_record_source(record):
     # type: (odoo.models.BaseModel) -> t.List[Source]
     return [
         Source(defin.module, defin.fname, defin.elem.sourceline)
-        for rec_id in _xml_ids(record)
+        for rec in record
+        for rec_id in _xml_ids(rec)
         for defin in xml_records()[".".join(rec_id)]
     ]
 
@@ -2194,16 +2195,17 @@ def _BaseModel_source_(record, location=None, context=False):
     # type: (odoo.models.BaseModel, t.Optional[t.Text], bool) -> None
     import lxml.etree
 
-    for rec_id in _xml_ids(record):
-        for definition in xml_records()[".".join(rec_id)]:
-            if location is not None and definition.module != location:
-                continue
-            elem = definition.elem.getroottree() if context else definition.elem
-            print(_format_source(definition.to_source()))
-            src = lxml.etree.tostring(elem, encoding="unicode")
-            # In perverse cases dedenting may change the meaning
-            src = textwrap.dedent(" " * 80 + src).strip()
-            print(color.highlight(src, "xml"))
+    for rec in record:
+        for rec_id in _xml_ids(rec):
+            for definition in xml_records()[".".join(rec_id)]:
+                if location is not None and definition.module != location:
+                    continue
+                elem = definition.elem.getroottree() if context else definition.elem
+                print(_format_source(definition.to_source()))
+                src = lxml.etree.tostring(elem, encoding="unicode")
+                # In perverse cases dedenting may change the meaning
+                src = textwrap.dedent(" " * 80 + src).strip()
+                print(color.highlight(src, "xml"))
 
 
 def grep_(*args, **kwargs):
