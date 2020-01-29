@@ -134,4 +134,10 @@ class ResGroups(BaseModel):
 
 class ResUsers(BaseModel):
     login: Text
+    active: bool
+    employee_ids: HrEmployee
     def has_group(self, group_ext_id: Text) -> bool: ...
+
+class HrEmployee(BaseModel):
+    user_id: ResUsers
+    active: bool

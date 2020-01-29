@@ -248,7 +248,7 @@ def _color_repr(owner, field_name):
         # The prefetch cache may be filled up by previous calls, see record_repr
         owner.env.prefetch.clear()
     try:
-        obj = getattr(owner, field_name)
+        obj = getattr(owner, field_name)  # type: object
     except Exception as err:
         return color.missing(repr(err))
     field_type = owner._fields[field_name].type
@@ -258,13 +258,15 @@ def _color_repr(owner, field_name):
         # False shows up as green if it's a Boolean, and red if it's a
         # default value, so red values always mean "missing"
         return color.boolean(repr(obj))
-    elif _is_record(obj):
-        if not obj._ids:
+    elif isinstance(obj, odoo.models.BaseModel):
+        if not hasattr(obj, "_ids") or not obj._ids:
             return color.missing("{}[]".format(obj._name))
         if len(obj._ids) > 10:
             return color.record(u"{} × {}".format(obj._name, len(obj._ids)))
         try:
             if obj._name == "res.users":
+                if MYPY:
+                    assert isinstance(obj, odoo.models.ResUsers)
                 return ", ".join(
                     color.record(UserBrowser._repr_for_value(user.login))
                     if user.login and user.active
@@ -272,6 +274,8 @@ def _color_repr(owner, field_name):
                     for user in obj
                 )
             elif obj._name == "hr.employee":
+                if MYPY:
+                    assert isinstance(obj, odoo.models.HrEmployee)
                 return ", ".join(
                     color.record(EmployeeBrowser._repr_for_value(em.user_id.login))
                     if (
@@ -1180,7 +1184,7 @@ class ModelProxy(object):
             raise AttributeError("Model '{}' does not exist".format(new))
         if attr in self._real._fields:
             return FieldProxy(self._real._fields[attr])
-        thing = getattr(self._real, attr)
+        thing = getattr(self._real, attr)  # type: object
         if callable(thing) and hasattr(type(self._real), attr):
             thing = MethodProxy(thing, self._real, attr)
         return thing
@@ -1255,10 +1259,8 @@ class ModelProxy(object):
         else:
             printer.text(repr(self))
 
-    def __getitem__(
-        self, ind  # type: t.Union[t.Iterable[int], t.Text, int]
-    ):
-        # type: (...) -> t.Union[MethodProxy, FieldProxy, odoo.models.BaseModel]
+    def __getitem__(self, ind):
+        # type: (t.Union[t.Iterable[int], t.Text, int]) -> object
         if self._real is None:
             raise KeyError("Model '{}' does not exist".format(self._path))
         if not ind:
