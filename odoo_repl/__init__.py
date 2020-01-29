@@ -2080,6 +2080,11 @@ class Addon(object):
             raise RuntimeError("Can't find path of module {!r}".format(self._module))
         return mod_path
 
+    @property
+    def ref(self):
+        # type: () -> DataModuleBrowser
+        return DataModuleBrowser(self._module)
+
     def grep_(self, *args, **kwargs):
         """grep through the addon's directory. See ModelProxy.grep_ for options."""
         argv = _build_grep_argv(args, kwargs)
