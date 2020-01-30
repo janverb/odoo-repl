@@ -1,90 +1,126 @@
-This is a wrapper around the `bin/python_odoo` script included with Odoo buildouts. It adds some niceties to make debugging less painful.
+`odoo-repl` is an interactive development environment for Odoo. It makes it easier to work with records and has basic code analysis features that can make you reach for `grep` less often.
+
+# Installing
+
+This module is not on PyPi yet, but it can be installed with pip, by running this in the repository directory:
+
+```
+pip install -e .
+```
 
 # Running
 
-First, install the wrapper. It's not on PyPI yet, so instead, run this in the repo directory:
+The most basic way to enable it is to run
 
+```python
+import odoo_repl; odoo_repl.enable()
 ```
-$ pip3 install --user -e .
-```
 
-You can use it for both Python 2 and Python 3 after that, no need to install it twice. It has been tested with Odoo 8, 10 and 12, but there might still be version-specific bugs. It doesn't work with versions below 8.
+when in an ordinary `odoo-bin shell` environment or similar.
 
-A script is installed in `~/.local/bin`. Make sure that it's in your PATH.
+## Buildout
 
-To launch, run `odoo-repl -d <database name>` in the buildout directory.
+If you use the [Odoo buildout recipe](http://docs.anybox.fr/anybox.recipe.odoo/current/) you can instead launch it using the `odoo-repl` wrapper script, which saves a little typing and is useful for older versions of Odoo that don't have the `shell` subcommand. The script is automatically installed when you install the module using `pip`.
+
+Run `odoo-repl` in the buildout directory to launch it. To pick a specific database, run `odoo-repl -d <database name>`.
 
 Run `odoo-repl --help` to see a full list of options.
 
-## Without buildout
-
-It's also possible to enable the package's features in an ordinary `odoo-bin shell` session. To do that, execute `import odoo_repl` and then `odoo_repl.enable()`. To do it this way it does need to be installed for your current Python version or virtualenv.
-
 # Features
 
-## Record and model overviews
+This is an overview of a few of the most useful features, but it's not an exhaustive list.
 
-Instead of seeing an uninformative `res.country(1,)` in your terminal, you get to look at something like this:
+## Easier model access
+
+Normally you have to type something along the lines of `self.env["res.currency"].browse(1)` to get a record. `odoo-repl` streamlines that to `res.currency[1]`.
+
+`self.env.ref("base.group_public")` becomes `ref.base.group_public`. This has tab completion.
+
+`self.env["res.users"].search([("login", "=", "admin")])` becomes `u.admin`, also with tab completion. `u["admin"]` works too, useful for more complicated usernames.
+
+`self.env["res.country"].search([("currency_id", "=", somerecord.id)])` becomes `res.country._(currency_id=somerecord)`. It can also be spelled `res.country._("currency_id", "=", somerecord.id)` or `res.country._([("currency_id", "=", somerecord.id)])`. All the normal arguments of `search` are supported.
+
+`self.env["res.country"].search([]).filtered(...)` becomes `res.country.filtered(...)`. Methods like `filtered` and `mapped` implicitly operate on all records.
+
+## Record overviews
+
+Instead of seeing an uninformative `res.currency(1,)` in your terminal, you get to look at something like this:
 
 ```pycon
->>> res.country[1]
-res.country[1] (ref.base.ad)
-address_format:    '%(street)s\n%(street2)s\n%(city)s %(state_code)s %(zip)s\n%(country_name)s'
-address_view_id:   ir.ui.view[]
-code:              'AD'
-country_group_ids: res.country.group[]
-currency_id:       res.currency[1]
-display_name:      'Andorra'
-image:             b'iVBORw0KGgoAAAANSUhEUgAAAPoAAACvCAYAAADUr8N5AAAABmJLR0QA/wD/AP+gvaeTAAAAB3RJTUUH2wMJBAgMSOMd6QAAIABJREFUeJzt3XmQXddh3/...
-name:              'Andorra'
-name_position:     'before'
-phone_code:        376
-state_ids:         res.country.state[]
-vat_label:         False
+>>> res.currency[1]
+res.currency[1] (ref.base.EUR)
+EUR
+active:                 True
+currency_subunit_label: 'Cents'
+currency_unit_label:    'Euros'
+date:                   2010-01-01
+decimal_places:         2
+name:                   'EUR'
+position:               'after'
+rate:                   1.0
+rate_ids:               res.currency.rate[129]
+rounding:               0.01
+symbol:                 '€'
+
+base: [...]/odoo/addons/base/data/res_currency_data.xml:1157
 ```
 
-It even comes with colors, unless you pass the `--no-color` flag to `odoo-repl`.
+Because this record was defined from module data, it shows the XML ID in the notation from earlier, and it shows the module and file it was defined in at the bottom.
 
-You can also see summaries of models and fields, including the source files. For example:
+## Model overviews
+
+You can also see summaries of models:
 
 ```pycon
 >>> ir.attachment
 ir.attachment
-access_token:   char (Access Token)
-active:         boolean (Active)
-checksum:       char (Checksum/SHA1)
-company_id:     many2one: res.company (Company)
+Attachment
+ s   access_token:   char (Access Token)
+ sd  active:         boolean (Active)
+ s   checksum:       char (Checksum/SHA1)
+ sd  company_id:     many2one: res.company (Company)
+   c datas:          binary (File Content)
 [...]
-url:            char (Url)
+rsd  type:           selection (Type)
+ s   url:            char (Url)
 
-web_editor: /home/.../parts/odoo/addons/web_editor/models/ir_attachment.py:7
-base: /home/.../parts/odoo/odoo/addons/base/models/ir_attachment.py:24
-
->>> ir.attachment.res_model
-char res_model on ir.attachment (readonly, store)
-Resource Model: The database object this attachment will be attached to.
-base: /home/.../parts/odoo/odoo/addons/base/models/ir_attachment.py:292
+web_editor: [...]/addons/web_editor/models/ir_attachment.py:7
+base: [...]/odoo/addons/base/models/ir_attachment.py:24
 ```
 
-You can use a new method, `edit_`, to open the definition of a model or field in a text editor. You can optionally pass it the name of the module to pick which definition you want to see. For example:
+Fields:
 
 ```pycon
->>> ir.attachment.res_model.edit_()
->>> ir.attachment.edit_('web_editor')
+>>> ir.attachment.res_model
+char res_model on ir.attachment (readonly, store, related_sudo)
+Resource Model: The database object this attachment will be attached to.
+base: [...]/odoo/addons/base/models/ir_attachment.py:292
 ```
 
-## Easy record access
+And methods:
 
-You can just type `res.country[1]` instead of `session.env['res.country'].browse(1)`. Even better, it's tab-completed, so you often don't have to type out the full name. You can type `res.cou` and press TAB.
+```pycon
+>>> ir.attachment.get_serving_groups
+@api.model
+ir.attachment.get_serving_groups(self)
+An ir.attachment record may be used as a fallback in the
+http dispatch if its type field is set to "binary" and its url
+field is set as the request's url. Only the groups returned by
+this method are allowed to create and write on such records.
 
-You can access users by their usernames as attributes on `u`, e.g. `u.admin`. This is also tab-completed. That makes it easier to `.sudo()` as particular users. You can also use indexing syntax for more complicated usernames, e.g. `u['test@example.com']`.
+base: /home/jan/therp/buildout12/parts/odoo/odoo/addons/base/models/ir_attachment.py:279
+```
 
-You can access data records as attributes on `ref`, e.g. `ref.base.user_root`. You can also call it like a function, e.g. `ref('base.user_root')`.
+Fields in the model overview can be marked with `r`, `s`, `d`, and `c`, which stand for `required`, `store`, `default` and `computed`, respectively.
 
-The `search` and `create` methods make intelligent use of keyword arguments:
+These all support additional methods `.source_()`, `.grep_()`, and `.edit_()`. `.source_()` prints the source code of all definitions. `.grep_()` runs `grep` on the source code, even if it's spread out across multiple modules. `.edit_()` opens an editor at the definition, based on your `$EDITOR` environment variable.
 
-- To find all countries that use EUR as a currency, run `res.country.search(currency_id=ref.base.EUR)`.
-
-- To create a new country that uses USD as a currency, run `res.country.create(name="Odooland", currency_id=ref.base.USD)`.
-
-If you have a form URL you can run it through `browse` to extract the record. For example, `browse('http://localhost:8069/web#id=1&view_type=form&model=res.country')` returns `res.country[1]`.
+```pycon
+>>> ir.attachment.grep_("ValidationError")
+[...]/odoo/addons/base/models/ir_attachment.py
+15:from odoo.exceptions import AccessError, ValidationError
+335:                raise ValidationError("Sorry, you are not allowed to write on this document")
+565:                raise exceptions.ValidationError(_("ERROR: Invalid PDF file!"))
+607:            raise exceptions.ValidationError(_("ERROR: the file must be a PDF"))
+612:                raise exceptions.ValidationError(_("ERROR: Invalid list of pages to split. Example: 1,5-9,10"))
+```
