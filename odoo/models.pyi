@@ -25,7 +25,7 @@ from odoo.api import Environment
 from odoo.fields import Field
 
 T = TypeVar("T")
-AnyModel = TypeVar("AnyModel")
+AnyModel = TypeVar("AnyModel", bound=BaseModel)
 
 class BaseModel:
     _fields: Dict[Text, Field]

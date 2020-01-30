@@ -47,7 +47,7 @@ def find_grep(default="grep"):
 
 
 def build_grep_argv(args, kwargs, recursive=False):
-    # type: (t.Iterable[str], t.Mapping[str, object], bool) -> t.List[t.Text]
+    # type: (t.Iterable[object], t.Mapping[str, object], bool) -> t.List[t.Text]
     argv = find_grep()
     if argv[0] == "grep" and color.enabled:
         argv.append("--color=auto")
@@ -56,7 +56,7 @@ def build_grep_argv(args, kwargs, recursive=False):
         argv.append(flag)
         if value is not True:
             argv.append(str(value))
-    argv.extend(args)
+    argv.extend(map(str, args))
     argv.append("--")
     if recursive and argv[0] == "grep":
         argv[1:1] = ["-r", "--exclude-dir=.git"]
@@ -123,6 +123,7 @@ if PY3:
 else:
     # Copied from the Python 3.7 stdlib
     def which(cmd, mode=os.F_OK | os.X_OK, path=None):
+        # type: (t.Text, int, t.Optional[t.Text]) -> t.Optional[t.Text]
         """Given a command, mode, and a PATH string, return the path which
         conforms to the given mode on the PATH, or None if there is no such
         file.
@@ -136,6 +137,7 @@ else:
         # Additionally check that `file` is not a directory, as on Windows
         # directories pass the os.access check.
         def _access_check(fn, mode):
+            # type: (t.Text, int) -> bool
             return os.path.exists(fn) and os.access(fn, mode) and not os.path.isdir(fn)
 
         # If we're given a path with a directory part, look it up directly rather
@@ -150,12 +152,12 @@ else:
             path = os.environ.get("PATH", os.defpath)
         if not path:
             return None
-        path = path.split(os.pathsep)
+        path_l = path.split(os.pathsep)
 
         if sys.platform == "win32":
             # The current directory takes precedence on Windows.
-            if os.curdir not in path:
-                path.insert(0, os.curdir)
+            if os.curdir not in path_l:
+                path_l.insert(0, os.curdir)
 
             # PATHEXT is necessary to check on Windows.
             pathext = os.environ.get("PATHEXT", "").split(os.pathsep)
@@ -173,7 +175,7 @@ else:
             files = [cmd]
 
         seen = set()  # type: t.Set[t.Text]
-        for directory in path:
+        for directory in path_l:
             normdir = os.path.normcase(directory)
             if normdir not in seen:
                 seen.add(normdir)

@@ -3,7 +3,7 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from odoo_repl.imports import odoo, t, MYPY
+from odoo_repl.imports import odoo, t, MYPY, Text
 
 if MYPY:
     Fingerprint = t.Tuple[t.Tuple[t.Text, object], ...]
@@ -18,6 +18,7 @@ def fingerprint(record):
         # type: (odoo.fields.Field) -> t.Union[bool, t.Text]
         value = getattr(record, field.name)
         if field.type == "selection":
+            assert isinstance(value, (Text, bool))
             return value
         return bool(value)
 
@@ -51,6 +52,7 @@ def differences(a, b, loose=False):
         raise TypeError("Can only compare records of same model")
 
     def fmtvalset(valset):
+        # type: (t.Set[object]) -> object
         if len(valset) == 1:
             return next(iter(valset))
         return valset

@@ -58,7 +58,7 @@ class Source(_Source):
 
     @classmethod
     def from_cls(cls, src_cls):
-        # type: (t.Type) -> Source
+        # type: (t.Type[odoo.models.BaseModel]) -> Source
         return cls(
             util.module(src_cls),
             inspect.getsourcefile(src_cls) or "???",

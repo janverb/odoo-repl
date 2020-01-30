@@ -162,14 +162,20 @@ def create_namespace(
     return env, namespace
 
 
-def enable(db=None, module_name=None, color=True, bg_editor=False):
+def enable(
+    db=None,  # type: t.Union[None, t.Text, odoo.sql_db.Cursor, odoo.api.Environment]
+    module_name=None,  # type: t.Union[None, t.Text, types.ModuleType]
+    with_color=True,  # type: bool
+    bg_editor=False,  # type: bool
+):
+    # type: (...) -> None
     """Enable all the bells and whistles.
 
     :param db: Either an Odoo environment object, an Odoo cursor, a database
                name, or ``None`` to guess the database to use.
     :param module_name: Either a module, the name of a module, or ``None`` to
                         install into the module of the caller.
-    :param bool color: Enable colored output.
+    :param bool with_color: Enable colored output.
     :param bool bg_editor: Don't wait for text editors invoked by ``.edit()``
                            to finish.
     """
@@ -185,7 +191,7 @@ def enable(db=None, module_name=None, color=True, bg_editor=False):
             module_name = "__main__"
 
     if module_name in {"__builtin__", "builtins"}:
-        __main__ = builtins
+        __main__ = builtins  # type: object
     elif isinstance(module_name, Text):
         __main__ = importlib.import_module(module_name)
     else:
@@ -209,7 +215,7 @@ def enable(db=None, module_name=None, color=True, bg_editor=False):
         if not hasattr(builtins, name) and not hasattr(__main__, name):
             setattr(__main__, name, obj)
 
-    if not color:
+    if not with_color:
         color.enabled = False
 
 
@@ -668,7 +674,7 @@ def _find_decorators(method):
 
 
 def _func_signature(func):
-    # type: (t.Callable) -> t.Text
+    # type: (t.Callable[..., t.Any]) -> t.Text
     if PY3:
         return str(inspect.signature(func))
     else:
@@ -719,6 +725,7 @@ def method_repr(methodproxy):
 
 
 def edit(thing, index=-1, bg=None):
+    # type: (sources.Sourceable, t.Union[int, t.Text], t.Optional[bool]) -> None
     """Open a model or field definition in an editor."""
     # TODO: editor kwarg and/or argparse flag
     if bg is None:
@@ -785,6 +792,7 @@ class EnvProxy(object):
     """
 
     def __getattr__(self, attr):
+        # type: (str) -> object
         if attr.startswith("__"):
             raise AttributeError
         if hasattr(env, attr):
@@ -943,7 +951,12 @@ def _BaseModel_search_(
     return result
 
 
-def _BaseModel_filtered_(self, func=None, **fields):
+def _BaseModel_filtered_(
+    self,  # type: odoo.models.AnyModel
+    func=None,  # type: t.Optional[t.Callable[[odoo.models.AnyModel], bool]]
+    **fields  # type: object
+):
+    # type: (...) -> odoo.models.AnyModel
     """Filter based on field values in addition to the usual .filtered() features.
 
     .filtered_(state='done') is equivalent to
@@ -997,6 +1010,7 @@ class ModelProxy(object):
         return thing
 
     def __dir__(self):
+        # type: () -> t.List[t.Text]
         real_methods = {
             "shuf_",
             "mod_",
@@ -1056,11 +1070,13 @@ class ModelProxy(object):
         return self._real.search([]).filtered_(*a, **k)  # type: ignore
 
     def __repr__(self):
+        # type: () -> str
         if self._real is not None:
             return "{}[]".format(self._path)
         return "<{}({})>".format(self.__class__.__name__, self._path)
 
     def _repr_pretty_(self, printer, _cycle):
+        # type: (t.Any, t.Any) -> None
         if self._real is not None and printer.indentation == 0:
             printer.text(model_repr(self._real))
         else:
@@ -1185,6 +1201,7 @@ class ModelProxy(object):
             print("  {}".format(name))
 
     def grep_(self, *args, **kwargs):
+        # type: (object, object) -> None
         """grep through the combined source code of the model.
 
         See help(odoo_repl.grep) for more information.
@@ -1232,7 +1249,7 @@ def _to_user(user):
     candidate = getattr(user, "user_id", user)
     if getattr(candidate, "_name", None) != "res.users":
         raise ValueError("{!r} is not a user".format(candidate))
-    return candidate
+    return candidate  # type: ignore
 
 
 class _PrettySoup(object):
@@ -1248,37 +1265,43 @@ class _PrettySoup(object):
 
     @classmethod
     def _from_string(cls, text):
+        # type: (t.Text) -> t.Union[t.Text, bs4.BeautifulSoup]
         try:
             # Requires bs4 and lxml
-            import bs4
+            from bs4 import BeautifulSoup
 
-            return cls(bs4.BeautifulSoup(text, "xml"))
+            return cls(BeautifulSoup(text, "xml"))
         except ImportError as err:
             print("Couldn't soupify XML: {}".format(err))
             return text
 
     def __getattr__(self, attr):
+        # type: (str) -> object
         return getattr(self._real, attr)
 
     def __dir__(self):
+        # type: () -> t.List[str]
         return dir(self._real)
 
     def __getitem__(self, ind):
+        # type: (object) -> object
         return self._real[ind]
 
     def __call__(self, *args, **kwargs):
+        # type: (object, object) -> object
         return self._real(*args, **kwargs)
 
     def __repr__(self):
+        # type: () -> str
         src = self._real.prettify()
         if not PY3:
             src = src.encode("ascii", errors="xmlcharrefreplace")
-        return color.highlight(src, "xml")
+        return str(color.highlight(src, "xml"))
 
 
 class MethodProxy(object):
     def __init__(self, method, model, name):
-        # type: (t.Callable, odoo.models.BaseModel, t.Text) -> None
+        # type: (t.Callable[..., t.Any], odoo.models.BaseModel, t.Text) -> None
         self._real = method
         self.model = model
         self.name = str(name)
@@ -1294,6 +1317,7 @@ class MethodProxy(object):
         return getattr(self._real, attr)
 
     def __dir__(self):
+        # type: () -> t.List[str]
         if PY3:
             listing = set(super().__dir__())
         else:
@@ -1302,11 +1326,13 @@ class MethodProxy(object):
         return sorted(listing)
 
     def __repr__(self):
+        # type: () -> str
         return "{}({!r}, {!r}, {!r})".format(
             self.__class__.__name__, self._real, self.model, self.name
         )
 
     def _repr_pretty_(self, printer, _cycle):
+        # type: (t.Any, t.Any) -> None
         if printer.indentation == 0:
             printer.text(method_repr(self))
         else:
@@ -1328,6 +1354,7 @@ class MethodProxy(object):
                 print(color.highlight("".join(lines)))
 
     def grep_(self, *args, **kwargs):
+        # type: (object, object) -> None
         """grep through all of the method's definitions, ignoring other file content.
 
         See ModelProxy.grep_ for options.
@@ -1378,11 +1405,13 @@ class FieldProxy(object):
         self._real = field
 
     def __getattr__(self, attr):
+        # type: (str) -> object
         if attr.startswith("__"):
             raise AttributeError
         return getattr(self._real, attr)
 
     def __dir__(self):
+        # type: () -> t.List[str]
         if PY3:
             listing = set(super().__dir__())
         else:
@@ -1391,12 +1420,15 @@ class FieldProxy(object):
         return sorted(listing)
 
     def __repr__(self):
+        # type: () -> str
         return repr(self._real)
 
     def _repr_pretty_(self, printer, cycle):
+        # type: (t.Any, t.Any) -> None
         _Field_repr_pretty_(self._real, printer, cycle)
 
     def source_(self, location=None):
+        # type: (t.Optional[t.Text]) -> None
         for source in sources.find_source(self._real):
             if location is not None and location != source.module:
                 continue
@@ -1463,10 +1495,10 @@ def browse(url):
 
 
 class RecordBrowser(object):
-    _model = NotImplemented
-    _field = NotImplemented
-    _listing = NotImplemented
-    _abbrev = NotImplemented
+    _model = NotImplemented  # type: str
+    _field = NotImplemented  # type: str
+    _listing = NotImplemented  # type: str
+    _abbrev = NotImplemented  # type: str
 
     def __getattr__(self, attr):
         # type: (t.Text) -> odoo.models.BaseModel
@@ -1485,10 +1517,11 @@ class RecordBrowser(object):
         return thing
 
     def __dir__(self):
+        # type: () -> t.List[t.Text]
         if self._model not in env.registry:
             # Avoid aborting SQL transaction
             raise TypeError("Model '{}' is not installed".format(self._model))
-        return ["_model", "_field", "_listing", "_abbrev"] + sql(self._listing)
+        return [u"_model", u"_field", u"_listing", u"_abbrev"] + sql(self._listing)
 
     def __eq__(self, other):
         # type: (object) -> bool
@@ -1609,7 +1642,9 @@ class DataModuleBrowser(object):
                     "SELECT model FROM ir_model_data WHERE module = %s AND name = %s",
                     self._module,
                     attr,
-                )[0]
+                )[
+                    0
+                ]  # type: str
                 return env[model]
             raise
         setattr(self, attr, record)
@@ -1702,6 +1737,7 @@ class Addon(object):
         return DataModuleBrowser(self._module)
 
     def grep_(self, *args, **kwargs):
+        # type: (object, object) -> None
         """grep through the addon's directory.
 
         See help(odoo_repl.grep) for more information.
@@ -1741,7 +1777,7 @@ class Addon(object):
         else:
             state = color.yellow.bold(state.capitalize())
 
-        description = self.manifest.description
+        description = self.manifest.description  # type: str
         if not PY3:
             try:
                 description = description.decode("utf8").encode(
@@ -1750,29 +1786,32 @@ class Addon(object):
             except UnicodeDecodeError:
                 pass
 
-        return "\n".join(
-            [
-                "{} {} by {}".format(
-                    color.module(self._module),
-                    self.manifest.version,
-                    self.manifest.author,
-                ),
-                self.path,
-                state,
-                color.display_name(self.manifest.name),
-                self.manifest.summary,
-                "Depends: {}".format(
-                    ", ".join(map(color.module, self.manifest.depends))
-                ),
-                "Defines: {}".format(", ".join(map(color.model, defined_models,))),
-                "",
-                # rst2ansi might be better here
-                # (https://pypi.org/project/rst2ansi/)
-                color.highlight(description, "rst"),
-            ]
+        return str(
+            "\n".join(
+                [
+                    "{} {} by {}".format(
+                        color.module(self._module),
+                        self.manifest.version,
+                        self.manifest.author,
+                    ),
+                    self.path,
+                    state,
+                    color.display_name(self.manifest.name),
+                    self.manifest.summary,
+                    "Depends: {}".format(
+                        ", ".join(map(color.module, self.manifest.depends))
+                    ),
+                    "Defines: {}".format(", ".join(map(color.model, defined_models,))),
+                    "",
+                    # rst2ansi might be better here
+                    # (https://pypi.org/project/rst2ansi/)
+                    color.highlight(description, "rst"),
+                ]
+            )
         )
 
     def _repr_pretty_(self, printer, _cycle):
+        # type: (t.Any, t.Any) -> None
         if printer.indentation == 0:
             printer.text(str(self))
         else:
@@ -1797,6 +1836,7 @@ def _BaseModel_source_(record, location=None, context=False):
 
 
 def grep_(*args, **kwargs):
+    # type: (object, object) -> None
     """grep through all installed addons.
 
     See help(odoo_repl.grep) for more information.
@@ -1814,7 +1854,7 @@ def grep_(*args, **kwargs):
     subprocess.Popen(argv).wait()
 
 
-class _AttributableDict(dict):
+class _AttributableDict(dict):  # type: ignore
     def __getattr__(self, attr):
         # type: (t.Text) -> t.Any
         try:
@@ -1826,6 +1866,7 @@ class _AttributableDict(dict):
         return val
 
     def __dir__(self):
+        # type: () -> t.List[t.Text]
         if PY3:
             listing = set(super().__dir__())
         else:

@@ -12,7 +12,7 @@ from odoo_repl.imports import t, overload, odoo, MYPY
 
 def module(cls):
     # type: (t.Type[odoo.models.BaseModel]) -> t.Text
-    return getattr(cls, "_module", cls.__name__)
+    return getattr(cls, "_module", cls.__name__)  # type: ignore
 
 
 def xml_ids(obj):
@@ -31,7 +31,7 @@ def xml_ids(obj):
 
 
 def unpack_function(func):
-    # type: (t.Any) -> t.Callable
+    # type: (t.Any) -> t.Callable[..., t.Any]
     """Remove wrappers to get the real function."""
     while hasattr(func, "_orig"):
         func = func._orig
@@ -39,7 +39,7 @@ def unpack_function(func):
         func = func.__wrapped__
     if hasattr(func, "__func__"):
         func = func.__func__
-    return func
+    return func  # type: ignore
 
 
 _savepoint_count = itertools.count()
@@ -60,7 +60,7 @@ def savepoint(cr):
 
 
 if MYPY:
-    T = t.TypeVar("T", odoo.models.BaseModel, odoo.fields.Field, t.Callable)
+    T = t.TypeVar("T", odoo.models.BaseModel, odoo.fields.Field, t.Callable[..., t.Any])
 
 
 @overload
@@ -77,7 +77,7 @@ def unwrap(obj):
 
 @overload  # noqa: F811
 def unwrap(obj):
-    # type: (odoo_repl.MethodProxy) -> t.Callable
+    # type: (odoo_repl.MethodProxy) -> t.Callable[..., t.Any]
     pass
 
 
@@ -88,6 +88,7 @@ def unwrap(obj):
 
 
 def unwrap(obj):  # noqa: F811
+    # type: (object) -> object
     if isinstance(
         obj, (odoo_repl.ModelProxy, odoo_repl.MethodProxy, odoo_repl.FieldProxy)
     ):

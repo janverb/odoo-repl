@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from __future__ import print_function
 
 import pdb
@@ -14,9 +13,9 @@ from odoo_repl.imports import PY3, abc, odoo, t
 __all__ = ("OPdb", "set_trace", "post_mortem", "pm")
 
 
-class _ChainMap(abc.MutableMapping):
+class _ChainMap(abc.MutableMapping):  # type: ignore
     def __init__(self, *mappings):
-        # type: (t.Mapping) -> None
+        # type: (t.Mapping[t.Any, t.Any]) -> None
         self.mappings = mappings
 
     def __getitem__(self, key):
@@ -70,7 +69,7 @@ class OPdb(pdb.Pdb, object):
             completekey=completekey, stdin=stdin, stdout=stdout, skip=skip
         )
         self.repl_namespace = {}  # type: t.Dict[t.Text, t.Any]
-        self._real_curframe_locals = None  # type: t.Optional[t.Mapping]
+        self._real_curframe_locals = None  # type: t.Optional[t.Mapping[str, t.Any]]
         self.env = None  # type: t.Optional[odoo.api.Environment]
         if not hasattr(self, "curframe_locals"):
             self.curframe_locals = {}

@@ -91,4 +91,4 @@ def highlight(src, syntax="python"):
             lexer = RstLexer()
         else:
             raise ValueError("Unknown syntax {!r}".format(syntax))
-        return pyg_highlight(src, lexer, TerminalFormatter())
+        return pyg_highlight(src, lexer, TerminalFormatter())  # type: ignore

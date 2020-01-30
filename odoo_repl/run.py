@@ -9,8 +9,11 @@ import sys
 
 import odoo_repl
 
+from odoo_repl.imports import t
+
 
 def main(argv=sys.argv[1:]):
+    # type: (t.Sequence[str]) -> int
     # TODO: flags for disabling features
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -109,7 +112,7 @@ import odoo_repl
 sys.path.pop()
 odoo_repl.parse_config(['-c', session.openerp_config_file] + {extra_args!r})
 session.open(db={database!r})
-odoo_repl.enable(session.env, __name__, color={color!r}, bg_editor={bg_editor!r})
+odoo_repl.enable(session.env, __name__, with_color={color!r}, bg_editor={bg_editor!r})
 """.format(
         database=args.database,
         odoo_repl_path=os.path.dirname(

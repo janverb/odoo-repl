@@ -29,6 +29,7 @@ except ImportError:
     t = None  # type: ignore
 
     def overload(func):
+        # type: (object) -> object
         return func
 
 
