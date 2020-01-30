@@ -8,6 +8,7 @@ import types
 
 import odoo_repl
 
+from odoo_repl import util
 from odoo_repl.imports import PY3, abc, odoo, t
 
 __all__ = ("OPdb", "set_trace", "post_mortem", "pm")
@@ -113,7 +114,7 @@ class OPdb(pdb.Pdb, object):
         if self.env is None:
             raise TypeError("Uninitialized debugger")
         try:
-            with odoo_repl.savepoint(self.env.cr):
+            with util.savepoint(self.env.cr):
                 self.env.cr.execute(arg)
                 pprint.pprint(self.env.cr.fetchall())
         except Exception as err:

@@ -45,10 +45,8 @@ from __future__ import print_function
 
 import atexit
 import collections
-import contextlib
 import importlib
 import inspect
-import itertools
 import keyword
 import linecache
 import logging
@@ -57,7 +55,6 @@ import pprint
 import random
 import re
 import string
-import shlex
 import subprocess
 import sys
 import textwrap
@@ -66,41 +63,33 @@ import types
 
 from datetime import datetime, date
 
+from odoo_repl import access
 from odoo_repl import color
+from odoo_repl import forensics
+from odoo_repl import grep
+from odoo_repl import opdb
+from odoo_repl import sources
+from odoo_repl import util
 from odoo_repl.imports import (
     MYPY,
     PY3,
     abc,
     odoo,
     t,
-    overload,
     Text,
     TextLike,
     builtins,
     urlparse,
-    which,
 )
 from odoo_repl.opdb import set_trace, post_mortem, pm
 
 if MYPY:
     import bs4
 
-__all__ = ("odoo_repr", "enable", "set_trace", "post_mortem", "pm")
+__all__ = ("odoo_repr", "enable", "set_trace", "post_mortem", "pm", "forensics", "opdb")
 
 env = None  # type: odoo.api.Environment  # type: ignore
 edit_bg = False
-
-RE_FIELD = re.compile(
-    r"""
-    ^\s*             # leading whitespace from the start of the line
-    ['"]?(\w+)['"]?  # field name, quoted if key in a _columns dict
-    \s*[:=]\s*       # : for an old-style dict, = for new-style assignment
-    fields\.         # assume "from odoo import fields"
-    (\w+)\(          # a single attribute deep, to avoid
-                     # "date = fields.date.today()" false positive
-    """,
-    re.VERBOSE,
-)
 
 
 FIELD_BLACKLIST = {
@@ -116,22 +105,6 @@ FIELD_BLACKLIST = {
     "password",
     "password_crypt",
 }
-
-# Copied from odoo.tools.convert.xml_import.__init__ (Odoo 8)
-# There may be false positives, I didn't check them all
-RECORD_TAGS = [
-    "record",
-    "delete",
-    "function",
-    "menuitem",
-    "template",
-    "workflow",
-    "report",
-    "ir_set",
-    "act_window",
-    "url",
-    "assert",
-]
 
 
 def parse_config(argv):
@@ -182,8 +155,8 @@ def create_namespace(
         "addons": AddonBrowser(),
     }  # type: t.Dict[t.Text, t.Any]
     namespace.update({part: ModelProxy(part) for part in envproxy._base_parts()})
-    if _xml_records is None:
-        xml_thread = threading.Thread(target=xml_records)
+    if sources._xml_records is None:
+        xml_thread = threading.Thread(target=sources.xml_records)
         xml_thread.daemon = True
         xml_thread.start()
     return env, namespace
@@ -303,40 +276,6 @@ def _color_repr(owner, field_name):
         return repr(obj)
 
 
-if MYPY:
-    T = t.TypeVar("T", odoo.models.BaseModel, odoo.fields.Field, t.Callable)
-
-
-@overload
-def _unwrap(obj):
-    # type: (ModelProxy) -> odoo.models.BaseModel
-    pass
-
-
-@overload  # noqa: F811
-def _unwrap(obj):
-    # type: (FieldProxy) -> odoo.fields.Field
-    pass
-
-
-@overload  # noqa: F811
-def _unwrap(obj):
-    # type: (MethodProxy) -> t.Callable
-    pass
-
-
-@overload  # noqa: F811
-def _unwrap(obj):
-    # type: (T) -> T
-    pass
-
-
-def _unwrap(obj):  # noqa: F811
-    if isinstance(obj, (ModelProxy, MethodProxy, FieldProxy)):
-        obj = obj._real
-    return obj
-
-
 def odoo_repr(obj):
     # type: (object) -> t.Text
     if isinstance(obj, ModelProxy):
@@ -376,7 +315,7 @@ def model_repr(obj):
     """Summarize a model's fields."""
     if isinstance(obj, ModelProxy) and obj._real is None:
         return repr(obj)
-    obj = _unwrap(obj)
+    obj = util.unwrap(obj)
 
     fields = []
     delegated = []
@@ -430,26 +369,14 @@ def model_repr(obj):
                 )
             )
     parts.append("")
-    parts.extend(_format_sources(_find_source(obj)))
+    parts.extend(sources.format_sources(sources.find_source(obj)))
     return "\n".join(parts)
-
-
-def _xml_ids(obj):
-    # type: (odoo.models.BaseModel) -> t.List[t.Tuple[t.Text, t.Text]]
-    # .get_external_id() returns at most one result per record
-    return [
-        (data_record.module, data_record.name)
-        for data_record in env[u"ir.model.data"].search(
-            [("model", "=", obj._name), ("res_id", "=", obj.id)]
-        )
-        if data_record.module != "__export__"
-    ]
 
 
 def _xml_id_tag(obj):
     # type: (odoo.models.BaseModel) -> t.Text
     return "".join(
-        " (ref.{}.{})".format(module, name) for module, name in _xml_ids(obj)
+        " (ref.{}.{})".format(module, name) for module, name in util.xml_ids(obj)
     )
 
 
@@ -481,7 +408,7 @@ def _ids_repr(idlist):
 def record_repr(obj):
     # type: (odoo.models.BaseModel) -> t.Text
     """Display all of a record's fields."""
-    obj = _unwrap(obj)
+    obj = util.unwrap(obj)
 
     if not obj:
         return "{}[]".format(obj._name)
@@ -518,11 +445,11 @@ def record_repr(obj):
             + _color_repr(no_prefetch_obj, field)
         )
 
-    if _xml_records is not None:
-        sources = _find_source(obj)
-        if sources:
+    if sources._xml_records is not None:
+        src = sources.find_source(obj)
+        if src:
             parts.append("")
-            parts.extend(_format_sources(sources))
+            parts.extend(sources.format_sources(src))
 
     return "\n".join(parts)
 
@@ -598,7 +525,7 @@ def field_repr(field):
     """List detailed information about a field."""
     # TODO:
     # - .groups, .copy, .states, .inverse, .column[12]
-    field = _unwrap(field)
+    field = util.unwrap(field)
     model = env[field.model_name]
     record = env[u"ir.model.fields"].search(
         [("model", "=", field.model_name), ("name", "=", field.name)]
@@ -701,10 +628,10 @@ def field_repr(field):
     if record.ttype == "selection":
         parts.append(pprint.pformat(field.selection))
 
-    sources = _find_source(field)
-    parts.extend(_format_sources(sources))
+    src = sources.find_source(field)
+    parts.extend(sources.format_sources(src))
 
-    if not sources and record.modules:
+    if not src and record.modules:
         parts.append(
             "Defined in module {}".format(
                 ", ".join(color.module(module) for module in record.modules.split(", "))
@@ -740,17 +667,6 @@ def _find_decorators(method):
         yield color.decorator("@classmethod")
 
 
-def _unpack_function(func):
-    # type: (t.Any) -> t.Callable
-    while hasattr(func, "_orig"):
-        func = func._orig
-    while hasattr(func, "__wrapped__"):
-        func = func.__wrapped__
-    if hasattr(func, "__func__"):
-        func = func.__func__
-    return func
-
-
 def _func_signature(func):
     # type: (t.Callable) -> t.Text
     if PY3:
@@ -761,13 +677,13 @@ def _func_signature(func):
 
 def method_repr(methodproxy):
     # type: (MethodProxy) -> t.Text
-    sources = _find_method_source(methodproxy)
+    src = sources.find_method_source(methodproxy)
     model = methodproxy.model
     name = methodproxy.name
 
     method = methodproxy._real
     decorators = list(_find_decorators(method))
-    method = _unpack_function(method)
+    method = util.unpack_function(method)
 
     signature = _func_signature(method)
     doc = inspect.getdoc(method)  # type: t.Optional[t.Text]
@@ -798,7 +714,7 @@ def method_repr(methodproxy):
     if doc:
         parts.append(doc)
     parts.append("")
-    parts.extend(_format_sources(sources))
+    parts.extend(sources.format_sources(src))
     return "\n".join(parts)
 
 
@@ -807,16 +723,16 @@ def edit(thing, index=-1, bg=None):
     # TODO: editor kwarg and/or argparse flag
     if bg is None:
         bg = edit_bg
-    sources = _find_source(thing)
-    if not sources:
+    src = sources.find_source(thing)
+    if not src:
         raise RuntimeError("Can't find source file!")
     if isinstance(index, int):
         try:
-            module, fname, lnum = sources[index]
+            module, fname, lnum = src[index]
         except IndexError:
             raise RuntimeError("Can't find match #{}".format(index))
     elif isinstance(index, Text):
-        for module, fname, lnum in sources:
+        for module, fname, lnum in src:
             if module == index:
                 break
         else:
@@ -827,121 +743,12 @@ def edit(thing, index=-1, bg=None):
     argv = (os.environ.get("EDITOR") or "nano").split()
     if lnum is not None:
         argv.append("+{}".format(lnum))
-    argv.append(fname)
+    argv.append(str(fname))
     if bg:
         # os.setpgrp avoids KeyboardInterrupt/SIGINT
         subprocess.Popen(argv, preexec_fn=os.setpgrp)
     else:
         subprocess.Popen(argv).wait()
-
-
-def _format_source(source):
-    # type: (Source) -> t.Text
-    module, fname, lnum = source
-    if lnum is not None:
-        return "{}: {}:{}".format(color.module(module), fname, lnum)
-    else:
-        return "{}: {}".format(color.module(module), fname)
-
-
-def _format_sources(sources):
-    # type: (t.Iterable[Source]) -> t.List[t.Text]
-    return [_format_source(source) for source in sources]
-
-
-def _module(cls):
-    # type: (t.Type) -> t.Text
-    return getattr(cls, "_module", cls.__name__)
-
-
-class Source(collections.namedtuple("Source", ("module", "fname", "lnum"))):
-    __slots__ = ()
-
-    @classmethod
-    def from_cls(cls, src_cls):
-        # type: (t.Type) -> Source
-        return cls(
-            _module(src_cls),
-            inspect.getsourcefile(src_cls),
-            inspect.getsourcelines(src_cls)[1],
-        )
-
-
-def _get_source_loc(thing):
-    # type: (t.Type) -> t.Tuple[t.Text, int]
-    return inspect.getsourcefile(thing) or "???", inspect.getsourcelines(thing)[1]
-
-
-def _find_source(
-    thing,  # type: (t.Union[odoo.models.BaseModel, odoo.fields.Field, MethodProxy])
-):
-    # type: (...) -> t.List[Source]
-    if isinstance(thing, odoo.models.BaseModel) and hasattr(thing, "_ids"):
-        if not thing._ids:
-            return _find_model_source(_unwrap(thing))
-        else:
-            return _find_record_source(thing)
-    elif isinstance(thing, odoo.fields.Field):
-        return _find_field_source(thing)
-    elif isinstance(thing, MethodProxy):
-        return _find_method_source(thing)
-    else:
-        raise TypeError(thing)
-
-
-def _find_model_source(model):
-    # type: (odoo.models.BaseModel) -> t.List[Source]
-    return [
-        Source.from_cls(cls)
-        for cls in type(model).__bases__
-        if cls.__module__ not in {"odoo.api", "openerp.api"}
-    ]
-
-
-def _find_record_source(record):
-    # type: (odoo.models.BaseModel) -> t.List[Source]
-    return [
-        Source(defin.module, defin.fname, defin.elem.sourceline)
-        for rec in record
-        for rec_id in _xml_ids(rec)
-        for defin in xml_records()[".".join(rec_id)]
-    ]
-
-
-def _find_field_source(field):
-    # type: (odoo.fields.Field) -> t.List[Source]
-    res = []
-    for cls in type(env[field.model_name]).__bases__:
-        if field.name in getattr(cls, "_columns", ()) or field.name in vars(cls):
-            if cls.__module__ in {"odoo.api", "openerp.api"}:
-                continue
-            fname = inspect.getsourcefile(cls)
-            lines, lnum = inspect.getsourcelines(cls)
-            for line in lines:
-                match = RE_FIELD.match(line)
-                if match and match.group(1) == field.name:
-                    break
-                lnum += 1
-            else:
-                lnum = None  # type: ignore
-            res.append(Source(_module(cls), fname, lnum))
-    return res
-
-
-def _find_method_source(method):
-    # type: (MethodProxy) -> t.List[Source]
-    res = []
-    for cls in type(method.model).mro()[1:]:
-        if method.name in vars(cls):
-            func = _unpack_function(vars(cls)[method.name])
-            res.append(
-                Source(
-                    _module(cls),
-                    inspect.getsourcefile(func),
-                    inspect.getsourcelines(func)[1],
-                )
-            )
-    return res
 
 
 def _BaseModel_repr_pretty_(self, printer, _cycle):
@@ -1322,47 +1129,25 @@ class ModelProxy(object):
         assert self._real is not None
         for cls in type(self._real).__bases__:
             name = getattr(cls, "_name", None)
-            if location is not None and _module(cls) != location:
+            if location is not None and util.module(cls) != location:
                 continue
             if location is None and name != self._real._name:
                 continue
-            print(_format_source(Source.from_cls(cls)))
+            print(sources.format_source(sources.Source.from_cls(cls)))
             print(color.highlight(inspect.getsource(cls)))
 
     def rules_(self, user=None):
         # type: (t.Optional[odoo.models.ResUsers]) -> None
         # TODO: is it possible to collapse the rules into a single policy for a user?
-        print(
-            "\n\n".join(
-                [
-                    _access_repr(access)
-                    for access in env[u"ir.model.access"].search(
-                        [("model_id", "=", self.mod_().id)]
-                    )
-                    if access.active
-                    and not (
-                        user is not None
-                        and access.group_id
-                        and not user.has_group(*access.group_id.get_xml_id().values())
-                    )
-                ]
-                + [
-                    _rule_repr(rule)
-                    for rule in env[u"ir.rule"].search(
-                        [("model_id", "=", self.mod_().id)]
-                    )
-                    if rule.active
-                    and not (
-                        user is not None
-                        and rule.groups
-                        and not any(
-                            user.has_group(*group.get_xml_id().values())
-                            for group in rule.groups
-                        )
-                    )
-                ]
-            )
+        mod_id = self.mod_().id
+        parts = []  # type: t.List[t.Text]
+        parts.extend(
+            access.access_repr(acc) for acc in access.access_for_model(mod_id, user)
         )
+        parts.extend(
+            access.rule_repr(rule) for rule in access.rules_for_model(mod_id, user)
+        )
+        print("\n\n".join(parts))
 
     def view_(
         self,
@@ -1392,7 +1177,7 @@ class ModelProxy(object):
         """Display basic PostgreSQL information about stored fields."""
         # TODO: make more informative
         assert self._real is not None
-        with savepoint(env.cr):
+        with util.savepoint(env.cr):
             env.cr.execute("SELECT * FROM {} LIMIT 0;".format(self._real._table))
             columns = env.cr.description
         print(self._real._table)
@@ -1402,30 +1187,12 @@ class ModelProxy(object):
     def grep_(self, *args, **kwargs):
         """grep through the combined source code of the model.
 
-        Examples:
-        >>> account.invoice.grep_("test")
-        >>> account.invoice.grep_("-e", "foo", "-e", "bar")
-        >>> account.invoice.grep_("test", A=5)  # grep -A 5
-        >>> account.invoice.grep_("test", i=True)  # grep -i
-        >>> account.invoice.grep_("test", max_count=3)  # grep --max-count 3
-
-        Because grep takes up a lot of horizontal space to display filenames,
-        this method defaults to rg (ripgrep), ag (the silver searcher) or ack,
-        if they're available. grep is used otherwise.
-
-        ripgrep's flags are most similar to grep's if you're looking for
-        something familiar.
-
-        Set the $ODOO_REPL_GREP environment variable to override the command.
-        You can use flags in it.
-
-        TODO: GNU grep is assumed. If you use another implementation then your
-        best option is to install one of the other tools listed above.
+        See help(odoo_repl.grep) for more information.
         """
         assert self._real is not None
         # TODO: handle multiple classes in single file properly
-        argv = _build_grep_argv(args, kwargs)
-        argv.extend(fname for _module, fname, _lnum in _find_source(self._real))
+        argv = grep.build_grep_argv(args, kwargs)
+        argv.extend(fname for _module, fname, _lnum in sources.find_source(self._real))
         subprocess.Popen(argv).wait()
 
     def methods_(self):
@@ -1439,9 +1206,11 @@ class ModelProxy(object):
             ]
             if meths:
                 print()
-                print(color.module(_module(cls)))
+                print(color.module(util.module(cls)))
                 for name, meth in meths:
-                    print(color.method(name) + _func_signature(_unpack_function(meth)))
+                    print(
+                        color.method(name) + _func_signature(util.unpack_function(meth))
+                    )
 
     _ = _BaseModel_search_
 
@@ -1464,34 +1233,6 @@ def _to_user(user):
     if getattr(candidate, "_name", None) != "res.users":
         raise ValueError("{!r} is not a user".format(candidate))
     return candidate
-
-
-def _find_grep(default="grep"):
-    # type: (t.Text) -> t.List[t.Any]
-    """Look for a grep-like program to use."""
-    user_conf = os.environ.get("ODOO_REPL_GREP")
-    if user_conf:
-        return shlex.split(user_conf)
-    for prog in "rg", "ag", "ack":
-        if which(prog):
-            return [prog]
-    # For disgusting technical reasons, default may not contain unicode in PY2
-    return shlex.split(str(default))
-
-
-def _build_grep_argv(args, kwargs):
-    # type: (t.Iterable[str], t.Mapping[str, object]) -> t.List[t.Text]
-    argv = _find_grep()
-    if argv[0] == "grep" and color.enabled:
-        argv.append("--color=auto")
-    for key, value in kwargs.items():
-        flag = "-" + key if len(key) == 1 else "--" + key.replace("_", "-")
-        argv.append(flag)
-        if value is not True:
-            argv.append(str(value))
-    argv.extend(args)
-    argv.append("--")
-    return argv
 
 
 class _PrettySoup(object):
@@ -1535,102 +1276,6 @@ class _PrettySoup(object):
         return color.highlight(src, "xml")
 
 
-def _rule_repr(rule):
-    # type: (odoo.models.IrRule) -> t.Text
-    parts = []
-    parts.append(_record_header(rule))
-    parts.append(color.display_name(rule.display_name))
-    groups = ", ".join(
-        color.record(group.name) + _xml_id_tag(group) for group in rule.groups
-    )
-    if not groups:
-        parts.append(
-            color.green.bold("Everyone")
-            if getattr(rule, "global")
-            else color.red.bold("No-one")
-        )
-    else:
-        parts.append(groups)
-    parts.append(_crud_format(rule))
-    if rule.domain_force not in {None, False, "[]", "[(1, '=', 1)]", '[(1, "=", 1)]'}:
-        assert rule.domain_force
-        parts.append(color.highlight(_domain_format(rule.domain_force)))
-    return "\n".join(parts)
-
-
-def _access_repr(access):
-    # type: (odoo.models.IrModelAccess) -> t.Text
-    parts = []
-    parts.append(_record_header(access))
-    parts.append(color.display_name(access.display_name))
-    parts.append(
-        color.record(access.group_id.name) + _xml_id_tag(access.group_id)
-        if access.group_id
-        else color.green.bold("Everyone")
-    )
-    parts.append(_crud_format(access))
-    return "\n".join(parts)
-
-
-def _domain_format(domain):
-    # type: (t.Text) -> t.Text
-    context = {
-        key: _Expressionizer(key) for key in env[u"ir.rule"]._eval_context().keys()
-    }
-    try:
-        # dont_inherit avoids ugly __future__ unicode_literals
-        compiled = compile(domain.strip(), "<domain>", "eval", dont_inherit=True)
-        evaled = eval(compiled, context)
-    except Exception:
-        return domain
-    return pprint.pformat(odoo.osv.expression.normalize_domain(evaled))
-
-
-class _Expressionizer(object):
-    """Remember attribute accesses and such to show in the repr.
-
-    Useful for running code through eval.
-
-    >>> _Expressionizer("foo").bar("baz", k=3)
-    foo.bar('baz', k=3)
-    """
-
-    def __init__(self, path):
-        # type: (t.Text) -> None
-        self._path = path
-
-    def __repr__(self):
-        return self._path
-
-    def __getattr__(self, attr):
-        return self.__class__("{}.{}".format(self._path, attr))
-
-    def __getitem__(self, ind):
-        return self.__class__("{}[{!r}]".format(self._path, ind))
-
-    def __iter__(self):
-        # type: () -> t.NoReturn
-        raise TypeError
-
-    def __call__(self, *args, **kwargs):
-        argfmt = [repr(arg) for arg in args]
-        argfmt.extend("{}={!r}".format(key, value) for key, value in kwargs.items())
-        return self.__class__("{}({})".format(self._path, ", ".join(argfmt)))
-
-
-def _crud_format(rule):
-    # type: (t.Union[odoo.models.IrModelAccess, odoo.models.IrRule]) -> t.Text
-    return ", ".join(
-        color.permission(name) if perm else " " * len(name)
-        for name, perm in [
-            ("read", rule.perm_read),
-            ("write", rule.perm_write),
-            ("create", rule.perm_create),
-            ("unlink", rule.perm_unlink),
-        ]
-    )
-
-
 class MethodProxy(object):
     def __init__(self, method, model, name):
         # type: (t.Callable, odoo.models.BaseModel, t.Text) -> None
@@ -1672,78 +1317,41 @@ class MethodProxy(object):
     def source_(self, location=None):
         # type: (t.Optional[t.Text]) -> None
         for cls in type(self.model).mro()[1:]:
-            module = _module(cls)
+            module = util.module(cls)
             if location is not None and location != module:
                 continue
             if self.name in vars(cls):
-                func = _unpack_function(vars(cls)[self.name])
-                fname = inspect.getsourcefile(func)
+                func = util.unpack_function(vars(cls)[self.name])
+                fname = inspect.getsourcefile(func) or "???"
                 lines, lnum = inspect.getsourcelines(func)
-                print(_format_source(Source(module, fname, lnum)))
+                print(sources.format_source(sources.Source(module, fname, lnum)))
                 print(color.highlight("".join(lines)))
 
     def grep_(self, *args, **kwargs):
         """grep through all of the method's definitions, ignoring other file content.
 
+        See ModelProxy.grep_ for options.
+
         The implementation is hacky. If you get weird results it's probably not
         your fault.
         """
-        # We mimic the output of ripgrep, which itself blends grep and ack
-        # One difference is that ripgrep prints non-matching line numbers
-        # with a dash following the number instead of a colon
-        argv = _build_grep_argv(args, kwargs)
+        argv = grep.build_grep_argv(args, kwargs)
         first = True
         for cls in type(self.model).mro()[1:]:
             if self.name in vars(cls):
-                lines, lnum = inspect.getsourcelines(
-                    _unpack_function(vars(cls)[self.name])
-                )
-                proc_input = "".join(
-                    "{}:{}".format(color.green(str(lnum + ind)), line)
-                    for ind, line in enumerate(lines)
-                )
-
-                # First we do a test run just to see if there are results
-                # That way we can skip writing the filename if there aren't any
-                # We could capture the output and print it, but then terminal
-                # detection would fail
-                with open(os.devnull, "w") as outfile:
-                    proc = subprocess.Popen(
-                        argv,
-                        stdin=subprocess.PIPE,
-                        stdout=outfile,
-                        stderr=subprocess.PIPE,
-                        universal_newlines=True,
-                    )
-                    assert proc.stdin is not None
-                    assert proc.stderr is not None
-                    proc.stdin.write(proc_input)
-                    proc.stdin.close()
-                    error = proc.stderr.read()
-                    if proc.wait() != 0:
-                        if error:
-                            # The command printed *something* to stderr, so
-                            # let's assume it's an error message about a
-                            # non-existent flag or something and quit.
-                            # stderr is ignored if the command exited
-                            # successfully, if it's interesting it'll probably
-                            # pop up again in the "real" run.
-                            print(error, file=sys.stderr)
-                            break
-                        continue
-
-                print(color.purple(inspect.getsourcefile(cls) or "???"))
-                proc = subprocess.Popen(
-                    argv, stdin=subprocess.PIPE, universal_newlines=True
-                )
-                assert proc.stdin is not None
-                proc.stdin.write(proc_input)
-                proc.stdin.close()
-                proc.wait()
-                if not first:
-                    print()
+                func = util.unpack_function(vars(cls)[self.name])
+                try:
+                    grep.partial_grep(argv, func)
+                except grep.BadCommandline as err:
+                    print(err, file=sys.stderr)
+                    return
+                except grep.NoResults:
+                    continue
                 else:
-                    first = False
+                    if not first:
+                        print()
+                    else:
+                        first = False
 
 
 def _extract_field_source(fname, lnum):
@@ -1789,10 +1397,16 @@ class FieldProxy(object):
         _Field_repr_pretty_(self._real, printer, cycle)
 
     def source_(self, location=None):
-        for source in _find_source(self._real):
+        for source in sources.find_source(self._real):
             if location is not None and location != source.module:
                 continue
-            print(_format_source(source))
+            if source.lnum is None:
+                print(
+                    "This field is defined somewhere in {!r} "
+                    "but we don't know where".format(source.fname)
+                )
+                continue
+            print(sources.format_source(source))
             print(color.highlight(_extract_field_source(source.fname, source.lnum)))
 
     def _make_method_proxy_(self, func):
@@ -1831,7 +1445,7 @@ def sql(query, *args):
 
     Optimized for ease of use, at the cost of performance and boringness.
     """
-    with savepoint(env.cr):
+    with util.savepoint(env.cr):
         env.cr.execute(query, args)
         result = env.cr.fetchall()
     if result and len(result[0]) == 1:
@@ -2088,10 +1702,11 @@ class Addon(object):
         return DataModuleBrowser(self._module)
 
     def grep_(self, *args, **kwargs):
-        """grep through the addon's directory. See ModelProxy.grep_ for options."""
-        argv = _build_grep_argv(args, kwargs)
-        if argv[0] == "grep":
-            argv[1:1] = ["-r", "--exclude-dir=.git"]
+        """grep through the addon's directory.
+
+        See help(odoo_repl.grep) for more information.
+        """
+        argv = grep.build_grep_argv(args, kwargs, recursive=True)
         argv.append(self.path)
         subprocess.Popen(argv).wait()
 
@@ -2164,68 +1779,17 @@ class Addon(object):
             printer.text(repr(self))
 
 
-class RecordDef(collections.namedtuple("RecordDef", ("module", "fname", "elem"))):
-    __slots__ = ()
-
-    def to_source(self):
-        # type: () -> Source
-        return Source(module=self.module, fname=self.fname, lnum=self.elem.sourceline)
-
-
-_xml_records = None  # type: t.Optional[t.DefaultDict[t.Text, t.List[RecordDef]]]
-
-
-def xml_records():
-    # type: () -> t.DefaultDict[t.Text, t.List[RecordDef]]
-    import lxml.etree
-
-    global _xml_records
-
-    if _xml_records is not None:
-        return _xml_records
-
-    _xml_records = collections.defaultdict(list)
-    for module, demo in sql(
-        "SELECT name, demo FROM ir_module_module WHERE state = 'installed'"
-    ):
-        manifest = odoo.modules.module.load_information_from_description_file(module)
-        path = odoo.modules.module.get_module_path(module)
-        if not path:
-            continue
-        data_files = list(manifest.get("data", ()))
-        if demo:
-            data_files.extend(manifest.get("demo", ()))
-        for fname in data_files:
-            if not fname.endswith(".xml"):
-                continue
-            fname = os.path.join(path, fname)
-            if not os.path.isfile(fname):
-                continue
-            tree = lxml.etree.parse(fname)
-            for tag in RECORD_TAGS:
-                for record in tree.iterfind("//" + tag):
-                    if "id" not in record.attrib:
-                        continue
-                    rec_id = record.attrib["id"]
-                    if "." not in rec_id:
-                        rec_id = module + "." + rec_id
-                    _xml_records[rec_id].append(
-                        RecordDef(module=module, fname=fname, elem=record)
-                    )
-    return _xml_records
-
-
 def _BaseModel_source_(record, location=None, context=False):
     # type: (odoo.models.BaseModel, t.Optional[t.Text], bool) -> None
     import lxml.etree
 
     for rec in record:
-        for rec_id in _xml_ids(rec):
-            for definition in xml_records()[".".join(rec_id)]:
+        for rec_id in util.xml_ids(rec):
+            for definition in sources.xml_records()[".".join(rec_id)]:
                 if location is not None and definition.module != location:
                     continue
                 elem = definition.elem.getroottree() if context else definition.elem
-                print(_format_source(definition.to_source()))
+                print(sources.format_source(definition.to_source()))
                 src = lxml.etree.tostring(elem, encoding="unicode")
                 # In perverse cases dedenting may change the meaning
                 src = textwrap.dedent(" " * 80 + src).strip()
@@ -2233,10 +1797,11 @@ def _BaseModel_source_(record, location=None, context=False):
 
 
 def grep_(*args, **kwargs):
-    """grep through all installed addons. See ModelProxy.grep_ for options."""
-    argv = _build_grep_argv(args, kwargs)
-    if argv[0] == "grep":
-        argv[1:1] = ["-r", "--exclude-dir=.git"]
+    """grep through all installed addons.
+
+    See help(odoo_repl.grep) for more information.
+    """
+    argv = grep.build_grep_argv(args, kwargs, recursive=True)
     argv.extend(
         filter(
             None,
@@ -2267,68 +1832,6 @@ class _AttributableDict(dict):
             listing = set()
         listing.update(self.keys())
         return sorted(listing)
-
-
-def fingerprint(record):
-    if len(record) != 1:
-        raise ValueError("To get fingerprints of multiple records, use `fingerprints`.")
-
-    def fieldprint(field):
-        value = getattr(record, field.name)
-        if field.type == "selection":
-            return value
-        return bool(value)
-
-    return tuple(
-        (name, fieldprint(field)) for name, field in sorted(record._fields.items())
-    )
-
-
-def fingerprints(records):
-    return frozenset(map(fingerprint, records))
-
-
-def inhomogenities(records):
-    prints = list(map(dict, fingerprints(records)))
-    for field in sorted(records._fields):
-        values = {prnt[field] for prnt in prints}
-        if len(values) != 1:
-            print("{}:\t{!r}".format(field, values))
-
-
-def differences(a, b, loose=False):
-    if a._name != b._name:
-        raise TypeError("Can only compare records of same model")
-
-    def fmtvalset(valset):
-        if len(valset) == 1:
-            return next(iter(valset))
-        return valset
-
-    aprints = list(map(dict, fingerprints(a)))
-    bprints = list(map(dict, fingerprints(b)))
-    for field in sorted(a._fields):
-        avals = {prnt[field] for prnt in aprints}
-        bvals = {prnt[field] for prnt in bprints}
-        if not (avals & bvals) or (loose and avals != bvals):
-            print("{}:\t{!r} vs {!r}".format(field, fmtvalset(avals), fmtvalset(bvals)))
-
-
-_savepoint_count = itertools.count()
-
-
-@contextlib.contextmanager
-def savepoint(cr):
-    # type: (odoo.sql_db.Cursor) -> t.Iterator[t.Text]
-    name = "odoo_repl_savepoint_{}".format(next(_savepoint_count))
-    cr.execute("SAVEPOINT {}".format(name))
-    try:
-        yield name
-    except Exception:
-        cr.execute("ROLLBACK TO SAVEPOINT {}".format(name))
-        raise
-    else:
-        cr.execute("RELEASE SAVEPOINT {}".format(name))
 
 
 def translate(text):
