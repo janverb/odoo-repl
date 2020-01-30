@@ -8,17 +8,12 @@ import types
 
 import odoo_repl
 
-from odoo_repl.imports import PY3, odoo, t
-
-if PY3:
-    from collections.abc import Mapping
-else:
-    from collections import Mapping
+from odoo_repl.imports import PY3, abc, odoo, t
 
 __all__ = ("OPdb", "set_trace", "post_mortem", "pm")
 
 
-class _ChainMap(Mapping):
+class _ChainMap(abc.MutableMapping):
     def __init__(self, *mappings):
         # type: (t.Mapping) -> None
         self.mappings = mappings
@@ -28,18 +23,36 @@ class _ChainMap(Mapping):
         for mapping in self.mappings:
             if key in mapping:
                 return mapping[key]
-        raise KeyError
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        # type: (object, object) -> None
+        for mapping in self.mappings:
+            if isinstance(mapping, abc.MutableMapping):
+                mapping[key] = value
+                return
+        raise TypeError("No mutable mappings in ChainMap")
+
+    def __delitem__(self, key):
+        # type: (object) -> None
+        for mapping in self.mappings:
+            if key in mapping:
+                if not isinstance(mapping, abc.MutableMapping):
+                    raise TypeError("{!r} is immutable".format(mapping))
+                del mapping[key]
+                return
+        raise KeyError(key)
 
     def _keys(self):
-        keys = set()  # type: t.Set[object]
-        for mapping in self.mappings:
-            keys.update(mapping)
-        return keys
+        # type: () -> t.Set[object]
+        return {key for mapping in self.mappings for key in mapping}
 
     def __iter__(self):
+        # type: () -> t.Iterator[object]
         return iter(self._keys())
 
     def __len__(self):
+        # type: () -> int
         return len(self._keys())
 
 

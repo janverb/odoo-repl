@@ -463,7 +463,7 @@ def _record_header(obj):
 
 def _ids_repr(idlist):
     # type: (t.Iterable[object]) -> t.Text
-    fragments = []
+    fragments = []  # type: t.List[t.Text]
     news = 0
     for ident in idlist:
         if isinstance(ident, int):
