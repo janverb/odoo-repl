@@ -763,6 +763,7 @@ class EnvProxy(object):
     def __init__(self, env):
         # type: (odoo.api.Environment) -> None
         self._env = env
+        self.ref = DataBrowser(env)
 
     def __getattr__(self, attr):
         # type: (str) -> object
