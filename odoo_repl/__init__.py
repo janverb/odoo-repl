@@ -62,6 +62,7 @@ import threading
 import types
 
 from odoo_repl import access
+from odoo_repl import addons
 from odoo_repl import color
 from odoo_repl import forensics
 from odoo_repl import grep
@@ -149,7 +150,7 @@ def create_namespace(
                 None,
                 map(
                     odoo.modules.module.get_module_path,
-                    sql(
+                    util.sql(
                         env,
                         "SELECT name FROM ir_module_module WHERE state = 'installed'",
                     ),
@@ -158,23 +159,35 @@ def create_namespace(
         )
         subprocess.Popen(argv).wait()
 
+    def translate(text):
+        # type: (t.Text) -> None
+        translations = env[u"ir.translation"].search(
+            ["|", ("src", "=", text), ("value", "=", text)]
+        )
+        if not translations:
+            text = "%" + text + "%"
+            translations = env[u"ir.translation"].search(
+                ["|", ("src", "ilike", text), ("value", "ilike", text)]
+            )
+        odoo_print(translations)
+
     namespace = {
         "self": env.user,
         "odoo": odoo,
         "openerp": odoo,
-        "sql": functools.partial(sql, env),
+        "sql": functools.partial(util.sql, env),
         "grep_": grep_,
-        "translate": functools.partial(translate, env),
+        "translate": translate,
         "env": envproxy,
         "u": UserBrowser(env),
         "emp": EmployeeBrowser(env),
         "ref": DataBrowser(env),
-        "addons": AddonBrowser(env),
+        "addons": addons.AddonBrowser(env),
     }  # type: t.Dict[t.Text, t.Any]
     namespace.update({part: ModelProxy(env, part) for part in envproxy._base_parts()})
 
     if not sources.xml_records:
-        modules = sql(
+        modules = util.sql(
             env, "SELECT name, demo FROM ir_module_module WHERE state = 'installed'",
         )
         xml_thread = threading.Thread(
@@ -267,7 +280,7 @@ def odoo_repr(obj):
         return field_repr(obj._env, obj._real)
     elif isinstance(obj, odoo.models.BaseModel):
         return record_repr(obj)
-    elif isinstance(obj, Addon):
+    elif isinstance(obj, addons.Addon):
         return str(obj)
     else:
         return repr(obj)
@@ -914,7 +927,7 @@ def _BaseModel_search_(
         query = "SELECT id FROM {}".format(self._table)
         if "active" in self._fields:
             query += " WHERE active = true"
-        all_ids = sql(self.env, query)
+        all_ids = util.sql(self.env, query)
         shuf = min(shuf, len(all_ids))
         return self.browse(random.sample(all_ids, shuf))
     clauses = _parse_search_query(args, fields)
@@ -1078,7 +1091,7 @@ class ModelProxy(object):
         # Browsing a non-existent record can cause weird caching problems, so
         # check first
         real_ind = set(
-            sql(
+            util.sql(
                 self._env,
                 'SELECT id FROM "{}" WHERE id IN %s'.format(self._real._table),
                 ind,
@@ -1105,7 +1118,9 @@ class ModelProxy(object):
         # type: () -> t.List[int]
         """Get all record IDs in the database."""
         self._ensure_real()
-        return sql(self._env, "SELECT id FROM {}".format(self._env[self._path]._table))
+        return util.sql(
+            self._env, "SELECT id FROM {}".format(self._env[self._path]._table)
+        )
 
     def mod_(self):
         # type: () -> odoo.models.IrModel
@@ -1447,20 +1462,6 @@ class FieldProxy(object):
         )
 
 
-def sql(env, query, *args):
-    # type: (odoo.api.Environment, t.Text, object) -> t.List[t.Any]
-    """Execute a SQL query and try to make the result nicer.
-
-    Optimized for ease of use, at the cost of performance and boringness.
-    """
-    with util.savepoint(env.cr):
-        env.cr.execute(query, args)
-        result = env.cr.fetchall()
-    if result and len(result[0]) == 1:
-        result = [row[0] for row in result]
-    return result
-
-
 class RecordBrowser(object):
     _model = NotImplemented  # type: str
     _field = NotImplemented  # type: str
@@ -1490,9 +1491,8 @@ class RecordBrowser(object):
     def __dir__(self):
         # type: () -> t.List[t.Text]
         if self._model not in self._env.registry:
-            # Avoid aborting SQL transaction
             raise TypeError("Model '{}' is not installed".format(self._model))
-        return [u"_model", u"_field", u"_listing", u"_abbrev"] + sql(
+        return [u"_model", u"_field", u"_listing", u"_abbrev"] + util.sql(
             self._env, self._listing
         )
 
@@ -1579,7 +1579,7 @@ class DataBrowser(object):
 
     def __getattr__(self, attr):
         # type: (t.Text) -> DataModuleBrowser
-        if not sql(
+        if not util.sql(
             self._env, "SELECT id FROM ir_model_data WHERE module = %s LIMIT 1", attr
         ):
             raise AttributeError("No module '{}'".format(attr))
@@ -1589,7 +1589,7 @@ class DataBrowser(object):
 
     def __dir__(self):
         # type: () -> t.List[t.Text]
-        return sql(self._env, "SELECT DISTINCT module FROM ir_model_data")
+        return util.sql(self._env, "SELECT DISTINCT module FROM ir_model_data")
 
     def __call__(self, query):
         # type: (t.Text) -> odoo.models.BaseModel
@@ -1618,7 +1618,7 @@ class DataModuleBrowser(object):
             if err.args == ("environments",):
                 # Threading issue, try to keep autocomplete working
                 # See RecordBrowser.__getattr__
-                model = sql(
+                model = util.sql(
                     self._env,
                     "SELECT model FROM ir_model_data WHERE module = %s AND name = %s",
                     self._module,
@@ -1633,7 +1633,7 @@ class DataModuleBrowser(object):
 
     def __dir__(self):
         # type: () -> t.List[t.Text]
-        return sql(
+        return util.sql(
             self._env, "SELECT name FROM ir_model_data WHERE module = %s", self._module
         )
 
@@ -1642,170 +1642,6 @@ def _is_record(obj):
     # type: (object) -> bool
     """Return whether an object is an Odoo record."""
     return isinstance(obj, odoo.models.BaseModel) and hasattr(obj, "_ids")
-
-
-class AddonBrowser(object):
-    def __init__(self, env):
-        # type: (odoo.api.Environment) -> None
-        self._env = env
-
-    def __getattr__(self, attr):
-        # type: (t.Text) -> Addon
-        if not sql(
-            self._env, "SELECT name FROM ir_module_module WHERE name = %s", attr
-        ):
-            raise AttributeError("No module '{}'".format(attr))
-        addon = Addon(self._env, attr)
-        setattr(self, attr, addon)
-        return addon
-
-    def __dir__(self):
-        # type: () -> t.List[t.Text]
-        return sql(self._env, "SELECT name FROM ir_module_module")
-
-    def __iter__(self):
-        # type: () -> t.Iterator[Addon]
-        for name in sql(self._env, "SELECT name FROM ir_module_module"):
-            yield Addon(self._env, name)
-
-
-class Addon(object):
-    def __init__(self, env, module):
-        # type: (odoo.api.Environment, t.Text) -> None
-        self._env = env
-        self._module = module
-        self._record = None  # type: t.Optional[odoo.models.IrModuleModule]
-
-    @property
-    def manifest(self):
-        # type: () -> _AttributableDict
-        manifest = odoo.modules.module.load_information_from_description_file(
-            self._module
-        )
-        if not manifest:
-            raise RuntimeError("Module {!r} not found".format(self._module))
-        return _AttributableDict(manifest)
-
-    @property
-    def record(self):
-        # type: () -> odoo.models.IrModuleModule
-        if self._record is None:
-            self._record = self._env[u"ir.module.module"].search(
-                [("name", "=", self._module)]
-            )
-        return self._record
-
-    @property
-    def models(self):
-        # type: () -> t.List[ModelProxy]
-        # TODO: return AddonModelBrowser with PartialModels that show the
-        # fields (and methods?) added in the addon
-        return [
-            ModelProxy(self._env, name, nocomplete=True)
-            for name in (
-                self._env[u"ir.model"]
-                .browse(
-                    self._env[u"ir.model.data"]
-                    .search([("model", "=", "ir.model"), ("module", "=", self._module)])
-                    .mapped("res_id")
-                )
-                .mapped("model")
-            )
-        ]
-
-    @property
-    def path(self):
-        # type: () -> t.Text
-        mod_path = odoo.modules.module.get_module_path(self._module)
-        if not mod_path:
-            raise RuntimeError("Can't find path of module {!r}".format(self._module))
-        return mod_path
-
-    @property
-    def ref(self):
-        # type: () -> DataModuleBrowser
-        return DataModuleBrowser(self._env, self._module)
-
-    def grep_(self, *args, **kwargs):
-        # type: (object, object) -> None
-        """grep through the addon's directory.
-
-        See help(odoo_repl.grep) for more information.
-        """
-        argv = grep.build_grep_argv(args, kwargs, recursive=True)
-        argv.append(self.path)
-        subprocess.Popen(argv).wait()
-
-    def __repr__(self):
-        # type: () -> str
-        return "{}({!r})".format(self.__class__.__name__, self._module)
-
-    def __str__(self):
-        # type: () -> str
-        # TODO: integrate with displayhooks (odoo_repr?)
-        defined_models = (
-            self._env[u"ir.model"]
-            .browse(
-                self._env[u"ir.model.data"]
-                .search([("model", "=", "ir.model"), ("module", "=", self._module)])
-                .mapped("res_id")
-            )
-            .mapped("model")
-        )
-
-        state = self.record.state
-        if (
-            state == "installed"
-            and self.record.installed_version != self.manifest.version
-        ):
-            state += " (out of date)"
-
-        if state == "installed":
-            state = color.green.bold(state.capitalize())
-        elif state in ("uninstallable", "uninstalled"):
-            state = color.red.bold(state.capitalize())
-        else:
-            state = color.yellow.bold(state.capitalize())
-
-        description = self.manifest.description  # type: str
-        if not PY3:
-            try:
-                description = description.decode("utf8").encode(
-                    "ascii", errors="replace"
-                )
-            except UnicodeDecodeError:
-                pass
-
-        return str(
-            "\n".join(
-                [
-                    "{} {} by {}".format(
-                        color.module(self._module),
-                        self.manifest.version,
-                        self.manifest.author,
-                    ),
-                    self.path,
-                    state,
-                    color.display_name(self.manifest.name),
-                    self.manifest.summary,
-                    "Depends: {}".format(
-                        ", ".join(map(color.module, self.manifest.depends))
-                    ),
-                    "Defines: {}".format(", ".join(map(color.model, defined_models,))),
-                    "",
-                    # rst2ansi might be better here
-                    # (https://pypi.org/project/rst2ansi/)
-                    color.highlight(description, "rst"),
-                ]
-            )
-        )
-
-    def _repr_pretty_(self, printer, _cycle):
-        # type: (t.Any, t.Any) -> None
-        if printer.indentation == 0:
-            printer.text(str(self))
-        else:
-            printer.text(repr(self))
 
 
 def _BaseModel_source_(record, location=None, context=False):
@@ -1823,40 +1659,6 @@ def _BaseModel_source_(record, location=None, context=False):
                 # In perverse cases dedenting may change the meaning
                 src = textwrap.dedent(" " * 80 + src).strip()
                 print(color.highlight(src, "xml"))
-
-
-class _AttributableDict(dict):  # type: ignore
-    def __getattr__(self, attr):
-        # type: (t.Text) -> t.Any
-        try:
-            val = self[attr]
-        except KeyError:
-            raise AttributeError(attr)
-        if isinstance(val, dict):
-            val = self.__class__(val)
-        return val
-
-    def __dir__(self):
-        # type: () -> t.List[t.Text]
-        if PY3:
-            listing = set(super().__dir__())
-        else:
-            listing = set()
-        listing.update(self.keys())
-        return sorted(listing)
-
-
-def translate(env, text):
-    # type: (odoo.api.Environment, t.Text) -> None
-    translations = env[u"ir.translation"].search(
-        ["|", ("src", "=", text), ("value", "=", text)]
-    )
-    if not translations:
-        text = "%" + text + "%"
-        translations = env[u"ir.translation"].search(
-            ["|", ("src", "ilike", text), ("value", "ilike", text)]
-        )
-    odoo_print(translations)
 
 
 try:

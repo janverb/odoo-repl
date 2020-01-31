@@ -71,6 +71,11 @@ _savepoint_count = itertools.count()
 @contextlib.contextmanager
 def savepoint(cr):
     # type: (odoo.sql_db.Cursor) -> t.Iterator[t.Text]
+    """Make a savepoint for a cursor, with rollback if an exception happens.
+
+    Note: SQL-related exceptions should be caught outside the ``with`` block,
+    or they'll leave the cursor in an aborted state.
+    """
     name = "odoo_repl_savepoint_{}".format(next(_savepoint_count))
     cr.execute("SAVEPOINT {}".format(name))
     try:
@@ -80,6 +85,20 @@ def savepoint(cr):
         raise
     else:
         cr.execute("RELEASE SAVEPOINT {}".format(name))
+
+
+def sql(env_, query, *args):
+    # type: (odoo.api.Environment, t.Text, object) -> t.List[t.Any]
+    """Execute a SQL query and make the result more convenient.
+
+    The query is executed with a savepoint and rolled back if necessary.
+    """
+    with savepoint(env_.cr):
+        env_.cr.execute(query, args)
+        result = env_.cr.fetchall()
+    if result and len(result[0]) == 1:
+        result = [row[0] for row in result]
+    return result
 
 
 if MYPY:
