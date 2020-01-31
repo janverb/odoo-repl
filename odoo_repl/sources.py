@@ -111,7 +111,7 @@ def find_record_source(record):
         Source(defin.module, defin.fname, defin.elem.sourceline)
         for rec in record
         for rec_id in util.xml_ids(rec)
-        for defin in xml_records[".".join(rec_id)]
+        for defin in xml_records[rec_id]
     ]
 
 
@@ -189,7 +189,7 @@ class RecordDef(_RecordDef):
 
 xml_records = collections.defaultdict(
     list
-)  # type: t.DefaultDict[t.Text, t.List[RecordDef]]
+)  # type: t.DefaultDict[util.XmlId, t.List[RecordDef]]
 
 
 def populate_xml_records(modules):
@@ -221,7 +221,9 @@ def populate_xml_records(modules):
                         continue
                     rec_id = record.attrib["id"]
                     if "." not in rec_id:
-                        rec_id = module + "." + rec_id
-                    xml_records[rec_id].append(
+                        ident = util.XmlId(module, rec_id)
+                    else:
+                        ident = util.XmlId(*rec_id.split("."))
+                    xml_records[ident].append(
                         RecordDef(module=module, fname=fname, elem=record)
                     )

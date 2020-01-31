@@ -58,7 +58,7 @@ decimal_places:         2
 name:                   'EUR'
 position:               'after'
 rate:                   1.0
-rate_ids:               res.currency.rate[129]
+rate_ids:               res.currency.rate[129] (ref.base.rateEUR)
 rounding:               0.01
 symbol:                 '€'
 

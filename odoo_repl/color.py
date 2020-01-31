@@ -7,6 +7,7 @@ from datetime import datetime, date
 
 import odoo_repl
 
+from odoo_repl import util
 from odoo_repl.imports import odoo, t, TextLike, MYPY
 
 enabled = True
@@ -109,6 +110,23 @@ def _render_record(obj):
             )
     except Exception:
         pass
+    if len(obj._ids) == 1:
+        affix = None
+        xml_ids = util.xml_ids(obj)
+        if xml_ids:
+            affix = xml_ids[0].to_ref()
+        else:
+            try:
+                name = obj.display_name
+                if name:
+                    affix = repr(name)
+                    if affix.startswith("u"):
+                        # Unicode string literal, distracting
+                        affix = affix[1:]
+            except Exception:
+                pass
+        if affix is not None:
+            return record("{}[{}]".format(obj._name, obj.id)) + " ({})".format(affix)
     return record("{}[{}]".format(obj._name, odoo_repl._ids_repr(obj._ids)))
 
 

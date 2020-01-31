@@ -2,6 +2,7 @@
 
 from __future__ import unicode_literals
 
+import collections
 import contextlib
 import itertools
 
@@ -19,14 +20,32 @@ def module(cls):
     return getattr(cls, "_module", cls.__name__)  # type: ignore
 
 
+if MYPY:
+    _XmlId = t.NamedTuple("XmlId", [("module", t.Text), ("name", t.Text)])
+else:
+    _XmlId = collections.namedtuple("XmlId", ("module", "name"))
+
+
+class XmlId(_XmlId):
+    __slots__ = ()
+
+    def __str__(self):
+        # type: () -> str
+        return str(".".join(self))
+
+    def to_ref(self):
+        # type: () -> t.Text
+        return "ref.{}.{}".format(self.module, self.name)
+
+
 def xml_ids(obj):
-    # type: (odoo.models.BaseModel) -> t.List[t.Tuple[t.Text, t.Text]]
+    # type: (odoo.models.BaseModel) -> t.List[XmlId]
     """Return all of a record's XML ids.
 
     .get_external_id() returns at most one result per record.
     """
     return [
-        (data_record.module, data_record.name)
+        XmlId(data_record.module, data_record.name)
         for data_record in obj.env["ir.model.data"].search(
             [("model", "=", obj._name), ("res_id", "=", obj.id)]
         )

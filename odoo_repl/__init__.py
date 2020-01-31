@@ -354,9 +354,7 @@ def model_repr(obj):
 
 def _xml_id_tag(obj):
     # type: (odoo.models.BaseModel) -> t.Text
-    return "".join(
-        " (ref.{}.{})".format(module, name) for module, name in util.xml_ids(obj)
-    )
+    return "".join(" ({})".format(xml_id.to_ref()) for xml_id in util.xml_ids(obj))
 
 
 def _record_header(obj):
@@ -1815,7 +1813,7 @@ def _BaseModel_source_(record, location=None, context=False):
 
     for rec in record:
         for rec_id in util.xml_ids(rec):
-            for definition in sources.xml_records[".".join(rec_id)]:
+            for definition in sources.xml_records[rec_id]:
                 if location is not None and definition.module != location:
                     continue
                 elem = definition.elem.getroottree() if context else definition.elem
