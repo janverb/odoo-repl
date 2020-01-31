@@ -83,7 +83,9 @@ class Addon(object):
     @property
     def path(self):
         # type: () -> t.Text
-        mod_path = odoo.modules.module.get_module_path(self._module)
+        mod_path = odoo.modules.module.get_module_path(
+            self._module, display_warning=False
+        )
         if not mod_path:
             raise RuntimeError("Can't find path of module {!r}".format(self._module))
         return mod_path
@@ -102,6 +104,31 @@ class Addon(object):
         argv = grep.build_grep_argv(args, kwargs, recursive=True)
         argv.append(self.path)
         subprocess.Popen(argv).wait()
+
+    def _get_depends(self):
+        # type: () -> odoo.models.IrModuleModule
+        return (
+            self._env["ir.module.module.dependency"]
+            .search([("module_id", "=", self.record.id)])
+            .mapped("depend_id")
+        )
+
+    def _get_rdepends(self):
+        # type: () -> t.Tuple[odoo.models.IrModuleModule, odoo.models.IrModuleModule]
+        dependency = self._env["ir.module.module.dependency"]
+        direct = dependency.search([("name", "=", self._module)]).mapped("module_id")
+        indirect = self._env["ir.module.module"]
+        latest = direct
+        while latest:
+            new = dependency.search([("name", "in", latest.mapped("name"))]).mapped(
+                "module_id"
+            )
+            new -= direct
+            new -= indirect
+            indirect |= latest
+            latest = new
+        indirect -= direct
+        return direct, indirect
 
     def __repr__(self):
         # type: () -> str
@@ -143,29 +170,41 @@ class Addon(object):
             except UnicodeDecodeError:
                 pass
 
-        return str(
-            "\n".join(
-                [
-                    "{} {} by {}".format(
-                        color.module(self._module),
-                        self.manifest.version,
-                        self.manifest.author,
-                    ),
-                    self.path,
-                    state,
-                    color.display_name(self.manifest.name),
-                    self.manifest.summary,
-                    "Depends: {}".format(
-                        ", ".join(map(color.module, self.manifest.depends))
-                    ),
-                    "Defines: {}".format(", ".join(map(color.model, defined_models,))),
-                    "",
-                    # rst2ansi might be better here
-                    # (https://pypi.org/project/rst2ansi/)
-                    color.highlight(description, "rst"),
-                ]
+        direct, indirect = self._get_rdepends()
+
+        parts = []
+        parts.append(
+            "{} {} by {}".format(
+                color.module(self._module), self.manifest.version, self.manifest.author,
             )
         )
+        parts.append(self.path)
+        parts.append(state)
+        parts.append(color.display_name(self.manifest.name))
+        parts.append(self.manifest.summary)
+        if self.manifest.depends:
+            parts.append(
+                "Depends: {}".format(
+                    ", ".join(map(color.module, self.manifest.depends))
+                )
+            )
+        if direct:
+            parts.append("Dependents: {}".format(", ".join(map(_color_state, direct))))
+        if indirect:
+            parts.append(
+                "Indirect dependents: {}".format(", ".join(map(_color_state, indirect)))
+            )
+        if defined_models:
+            parts.append(
+                "Defines: {}".format(", ".join(map(color.model, defined_models)))
+            )
+        if description:
+            parts.append("")
+            # rst2ansi might be better here
+            # (https://pypi.org/project/rst2ansi/)
+            parts.append(color.highlight(description, "rst"))
+
+        return str("\n".join(parts))
 
     def _repr_pretty_(self, printer, _cycle):
         # type: (t.Any, t.Any) -> None
@@ -173,6 +212,16 @@ class Addon(object):
             printer.text(str(self))
         else:
             printer.text(repr(self))
+
+
+def _color_state(module):
+    # type: (odoo.models.IrModuleModule) -> t.Text
+    if module.state == "installed":
+        return color.module(module.name)
+    elif module.state == "uninstalled":
+        return color.red.bold(module.name)
+    else:
+        return color.yellow.bold(module.name)
 
 
 class _AttributableDict(dict):  # type: ignore

@@ -77,6 +77,7 @@ class BaseModel:
     ) -> _FieldView: ...
     def __iter__(self: AnyModel) -> Iterator[AnyModel]: ...
     def __or__(self: AnyModel, other: AnyModel) -> AnyModel: ...
+    def __sub__(self: AnyModel, other: AnyModel) -> AnyModel: ...
     def __len__(self) -> int: ...
 
 class _Constrainer(types.FunctionType):
@@ -106,11 +107,12 @@ class IrRule(BaseModel):
     def _eval_context(self) -> Dict[Any, Any]: ...
 
 class IrModel(BaseModel):
-    pass
+    model: Text
 
 class IrModelData(BaseModel):
     module: Text
     name: Text
+    res_id: int
 
 class IrModelFields(BaseModel):
     ttype: Text
@@ -121,8 +123,14 @@ class IrModelFields(BaseModel):
     modules: Text
 
 class IrModuleModule(BaseModel):
+    name: Text
     state: Text
     installed_version: Text
+
+class IrModuleModuleDependency(BaseModel):
+    module_id: IrModuleModule
+    name: Text
+    depend_id: IrModuleModule
 
 class IrTranslation(BaseModel):
     src: Text
