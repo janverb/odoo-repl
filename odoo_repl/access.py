@@ -10,12 +10,13 @@ from odoo_repl.imports import odoo, t
 
 
 def access_for_model(
+    env,  # type: odoo.api.Environment
     model_id,  # type: int
     user=None,  # type: t.Optional[odoo.models.ResUsers]
 ):
     # type: (...) -> odoo.models.IrModelAccess
     return (
-        odoo_repl.env["ir.model.access"]
+        env["ir.model.access"]
         .search([("model_id", "=", model_id)])
         .filtered("active")
         .filtered(
@@ -29,12 +30,13 @@ def access_for_model(
 
 
 def rules_for_model(
+    env,  # type: odoo.api.Environment
     model_id,  # type: int
     user=None,  # type: t.Optional[odoo.models.ResUsers]
 ):
     # type: (...) -> odoo.models.IrRule
     return (
-        odoo_repl.env["ir.rule"]
+        env["ir.rule"]
         .search([("model_id", "=", model_id)])
         .filtered("active")
         .filtered(
@@ -69,7 +71,7 @@ def rule_repr(rule):
     parts.append(_crud_format(rule))
     if rule.domain_force not in {None, False, "[]", "[(1, '=', 1)]", '[(1, "=", 1)]'}:
         assert rule.domain_force
-        parts.append(color.highlight(_domain_format(rule.domain_force)))
+        parts.append(color.highlight(_domain_format(rule.env, rule.domain_force)))
     return "\n".join(parts)
 
 
@@ -87,11 +89,10 @@ def access_repr(access):
     return "\n".join(parts)
 
 
-def _domain_format(domain):
-    # type: (t.Text) -> t.Text
+def _domain_format(env, domain):
+    # type: (odoo.api.Environment, t.Text) -> t.Text
     context = {
-        key: _Expressionizer(key)
-        for key in odoo_repl.env["ir.rule"]._eval_context().keys()
+        key: _Expressionizer(key) for key in env["ir.rule"]._eval_context().keys()
     }
     try:
         # dont_inherit avoids ugly __future__ unicode_literals

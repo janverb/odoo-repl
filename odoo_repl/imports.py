@@ -47,12 +47,6 @@ else:
     import __builtin__ as builtins
 
 
-if PY3:
-    import urllib.parse as urlparse
-else:
-    import urlparse
-
-
 __all__ = (
     "MYPY",
     "PY3",
@@ -63,5 +57,4 @@ __all__ = (
     "Text",
     "TextLike",
     "builtins",
-    "urlparse",
 )

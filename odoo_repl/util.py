@@ -10,6 +10,10 @@ import odoo_repl
 from odoo_repl.imports import t, overload, odoo, MYPY
 
 
+# Globally accessible environment. Use sparingly.
+env = None  # type: odoo.api.Environment  # type: ignore
+
+
 def module(cls):
     # type: (t.Type[odoo.models.BaseModel]) -> t.Text
     return getattr(cls, "_module", cls.__name__)  # type: ignore
@@ -23,7 +27,7 @@ def xml_ids(obj):
     """
     return [
         (data_record.module, data_record.name)
-        for data_record in odoo_repl.env["ir.model.data"].search(
+        for data_record in obj.env["ir.model.data"].search(
             [("model", "=", obj._name), ("res_id", "=", obj.id)]
         )
         if data_record.module != "__export__"

@@ -2,6 +2,7 @@
 
 import collections
 import inspect
+import linecache
 import os
 import re
 
@@ -110,14 +111,14 @@ def find_record_source(record):
         Source(defin.module, defin.fname, defin.elem.sourceline)
         for rec in record
         for rec_id in util.xml_ids(rec)
-        for defin in xml_records()[".".join(rec_id)]
+        for defin in xml_records[".".join(rec_id)]
     ]
 
 
 def find_field_source(field):
     # type: (odoo.fields.Field) -> t.List[Source]
     res = []
-    for cls in type(odoo_repl.env[field.model_name]).__bases__:
+    for cls in type(util.env[field.model_name]).__bases__:
         if field.name in getattr(cls, "_columns", ()) or field.name in vars(cls):
             if cls.__module__ in {"odoo.api", "openerp.api"}:
                 continue
@@ -150,6 +151,24 @@ def find_method_source(method):
     return res
 
 
+def extract_field_source(fname, lnum):
+    # type: (t.Text, int) -> t.Text
+    pieces = []
+    depth = 0
+    for line in iter(lambda: linecache.getline(fname, lnum), ""):
+        for ind, char in enumerate(line):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    pieces.append(line[: ind + 1])
+                    return "".join(pieces)
+        pieces.append(line)
+        lnum += 1
+    return "".join(pieces)
+
+
 if MYPY:
     from lxml.etree import _ElementTree
 
@@ -168,22 +187,20 @@ class RecordDef(_RecordDef):
         return Source(module=self.module, fname=self.fname, lnum=self.elem.sourceline)
 
 
-_xml_records = None  # type: t.Optional[t.DefaultDict[t.Text, t.List[RecordDef]]]
+xml_records = collections.defaultdict(
+    list
+)  # type: t.DefaultDict[t.Text, t.List[RecordDef]]
 
 
-def xml_records():
-    # type: () -> t.DefaultDict[t.Text, t.List[RecordDef]]
+def populate_xml_records(modules):
+    # type: (t.Iterable[t.Tuple[t.Text, bool]]) -> None
     import lxml.etree
 
-    global _xml_records
+    if xml_records:
+        # There is a race condition here but it seems hard enough to trigger
+        return
 
-    if _xml_records is not None:
-        return _xml_records
-
-    _xml_records = collections.defaultdict(list)
-    for module, demo in odoo_repl.sql(
-        "SELECT name, demo FROM ir_module_module WHERE state = 'installed'"
-    ):
+    for module, demo in modules:
         manifest = odoo.modules.module.load_information_from_description_file(module)
         path = odoo.modules.module.get_module_path(module)
         if not path:
@@ -205,7 +222,6 @@ def xml_records():
                     rec_id = record.attrib["id"]
                     if "." not in rec_id:
                         rec_id = module + "." + rec_id
-                    _xml_records[rec_id].append(
+                    xml_records[rec_id].append(
                         RecordDef(module=module, fname=fname, elem=record)
                     )
-    return _xml_records
