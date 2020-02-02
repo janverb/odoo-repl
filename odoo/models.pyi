@@ -9,6 +9,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Generic,
     Iterator,
     List,
     Optional,
@@ -37,7 +38,8 @@ class BaseModel:
     _inherits: Dict[Text, Text]
     env: Environment
     _ids: Sequence[int]
-    id: int
+    @property
+    def id(self: AnyModel) -> _RecordId[AnyModel]: ...
     display_name: Text
     def browse(self: AnyModel, ids: Union[int, Sequence[int]]) -> AnyModel: ...
     def exists(self: AnyModel) -> AnyModel: ...
@@ -64,6 +66,7 @@ class BaseModel:
         count: bool = ...,
     ) -> AnyModel: ...
     def create(self: AnyModel, vals: Dict[str, object]) -> AnyModel: ...
+    def write(self, vals: Dict[str, object]) -> bool: ...
     @overload
     def mapped(self, func: Text) -> object: ...
     @overload
@@ -79,6 +82,9 @@ class BaseModel:
     def __or__(self: AnyModel, other: AnyModel) -> AnyModel: ...
     def __sub__(self: AnyModel, other: AnyModel) -> AnyModel: ...
     def __len__(self) -> int: ...
+
+class _RecordId(int, Generic[AnyModel]):
+    pass
 
 class _Constrainer(types.FunctionType):
     _constrains: Tuple[Text]
