@@ -8,7 +8,7 @@ from datetime import datetime, date
 import odoo_repl
 
 from odoo_repl import util
-from odoo_repl.imports import odoo, t, TextLike, MYPY
+from odoo_repl.imports import odoo, t, TextLike, MYPY, Field
 
 enabled = True
 
@@ -70,7 +70,7 @@ field_default = green.bold
 
 
 def color_field(field_obj):
-    # type: (odoo.fields.Field) -> t.Text
+    # type: (Field) -> t.Text
     f_type = field_colors.get(field_obj.type, field_default)(field_obj.type)
     if field_obj.relational:
         return "{}: {}".format(f_type, record(field_obj.comodel_name))

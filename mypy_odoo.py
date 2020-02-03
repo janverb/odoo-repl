@@ -13,7 +13,15 @@ from mypy.plugin import (
     Plugin,
     CheckerPluginInterface,
 )
-from mypy.types import CallableType, Type, Instance, TypedDictType, AnyType, TypeOfAny
+from mypy.types import (
+    CallableType,
+    Type,
+    Instance,
+    TypedDictType,
+    AnyType,
+    TypeOfAny,
+    ProperType,
+)
 
 
 class OdooPlugin(Plugin):
@@ -54,8 +62,11 @@ def mapped_hook(ctx: MethodContext) -> Type:
     field = ctx.args[0][0].value
     if not field:
         return ctx.default_return_type
-    cur_type = ctx.type
+    cur_type = ctx.type  # type: Type
     for part in field.split("."):
+        if not isinstance(cur_type, Instance):
+            ctx.api.fail("Can't get {!r} from {!r}".format(part, cur_type), ctx.context)
+            return AnyType(TypeOfAny.from_error)
         field_value = cur_type.type.get(part)
         if (
             not field_value
@@ -67,7 +78,23 @@ def mapped_hook(ctx: MethodContext) -> Type:
                 ctx.context,
             )
             return AnyType(TypeOfAny.from_error)
-        cur_type = field_value.type
+        if field_value.type.type.fullname.startswith("odoo.fields."):
+            get = field_value.type.type.get("__get__")
+            if (
+                not get
+                or not isinstance(get.type, CallableType)
+                or not isinstance(get.type.ret_type, ProperType)
+            ):
+                ctx.api.fail(
+                    "Unexpected type while analyzing {!r}".format(
+                        field_value.type.type.fullname
+                    ),
+                    ctx.context,
+                )
+                return AnyType(TypeOfAny.from_error)
+            cur_type = get.type.ret_type
+        else:
+            cur_type = field_value.type
     if isinstance(cur_type, Instance):
         if cur_type.type.fullname.startswith("odoo.models."):
             return cur_type
@@ -85,8 +112,11 @@ def filtered_hook(ctx: MethodContext) -> Type:
     field = ctx.args[0][0].value
     if not field:
         return ctx.default_return_type
-    cur_type = ctx.type
+    cur_type = ctx.type  # type: Type
     for part in field.split("."):
+        if not isinstance(cur_type, Instance):
+            ctx.api.fail("Can't get {!r} from {!r}".format(part, cur_type), ctx.context)
+            return AnyType(TypeOfAny.from_error)
         field_value = cur_type.type.get(part)
         if (
             not field_value
@@ -98,7 +128,23 @@ def filtered_hook(ctx: MethodContext) -> Type:
                 ctx.context,
             )
             return AnyType(TypeOfAny.from_error)
-        cur_type = field_value.type
+        if field_value.type.type.fullname.startswith("odoo.fields."):
+            get = field_value.type.type.get("__get__")
+            if (
+                not get
+                or not isinstance(get.type, CallableType)
+                or not isinstance(get.type.ret_type, ProperType)
+            ):
+                ctx.api.fail(
+                    "Unexpected type while analyzing {!r}".format(
+                        field_value.type.type.fullname
+                    ),
+                    ctx.context,
+                )
+                return AnyType(TypeOfAny.from_error)
+            cur_type = get.type.ret_type
+        else:
+            cur_type = field_value.type
     return ctx.default_return_type
 
 
@@ -112,18 +158,23 @@ def fieldget_hook(ctx: MethodContext) -> Type:
     ):
         return ctx.default_return_type
     field = ctx.args[0][0].value
-    field_value = ctx.type.type.get(field)
-    if (
-        not field_value
-        or not field_value.type
-        or not isinstance(field_value.type, Instance)
-    ):
+    f_obj = ctx.type.type.get(field)
+    if not f_obj or not isinstance(f_obj.type, Instance):
         ctx.api.fail(
-            "Unknown field {!r} on model {!r}".format(field, ctx.type.type.fullname),
+            "Didn't find field {!r} on {!r}".format(field, ctx.type.type.fullname),
             ctx.context,
         )
         return AnyType(TypeOfAny.from_error)
-    return field_value.type
+    get = f_obj.type.type.get("__get__")
+    if not get or not isinstance(get.type, CallableType):
+        ctx.api.fail(
+            "Didn't find descriptor for {!r} on {!r}".format(
+                field, ctx.type.type.fullname
+            ),
+            ctx.context,
+        )
+        return AnyType(TypeOfAny.from_error)
+    return get.type.ret_type
 
 
 def envget_hook(ctx: MethodContext) -> Type:

@@ -10,7 +10,7 @@ import odoo_repl
 
 from odoo_repl import color
 from odoo_repl import util
-from odoo_repl.imports import odoo, t, MYPY
+from odoo_repl.imports import odoo, t, MYPY, Field
 
 if MYPY:
     Sourceable = t.Union[
@@ -116,7 +116,7 @@ def find_record_source(record):
 
 
 def find_field_source(field):
-    # type: (odoo.fields.Field) -> t.List[Source]
+    # type: (Field) -> t.List[Source]
     res = []
     for cls in type(util.env[field.model_name]).__bases__:
         if field.name in getattr(cls, "_columns", ()) or field.name in vars(cls):

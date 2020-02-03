@@ -8,7 +8,7 @@ import itertools
 
 import odoo_repl
 
-from odoo_repl.imports import t, overload, odoo, MYPY
+from odoo_repl.imports import t, overload, odoo, MYPY, Field
 
 
 # Globally accessible environment. Use sparingly.
@@ -102,7 +102,7 @@ def sql(env_, query, *args):
 
 
 if MYPY:
-    T = t.TypeVar("T", odoo.models.BaseModel, odoo.fields.Field, t.Callable[..., t.Any])
+    T = t.TypeVar("T", odoo.models.BaseModel, Field, t.Callable[..., t.Any])
 
 
 @overload
@@ -113,7 +113,7 @@ def unwrap(obj):
 
 @overload  # noqa: F811
 def unwrap(obj):
-    # type: (odoo_repl.FieldProxy) -> odoo.fields.Field
+    # type: (odoo_repl.FieldProxy) -> Field
     pass
 
 

@@ -23,6 +23,7 @@ from typing import (
 
 from typing_extensions import Literal, TypedDict
 
+from odoo import fields
 from odoo.api import Environment
 from odoo.fields import Field
 
@@ -102,66 +103,66 @@ class _FieldView(TypedDict):
 
 # These don't actually live in odoo.models
 class IrModelAccess(BaseModel):
-    active: bool
+    active = fields.Boolean()
     group_id: ResGroups
-    perm_read: bool
-    perm_write: bool
-    perm_create: bool
-    perm_unlink: bool
+    perm_read = fields.Boolean()
+    perm_write = fields.Boolean()
+    perm_create = fields.Boolean()
+    perm_unlink = fields.Boolean()
 
 class IrRule(BaseModel):
-    active: bool
+    active = fields.Boolean()
     groups: ResGroups
-    domain_force: Optional[Text]
-    perm_read: bool
-    perm_write: bool
-    perm_create: bool
-    perm_unlink: bool
+    domain_force = fields.Char()
+    perm_read = fields.Boolean()
+    perm_write = fields.Boolean()
+    perm_create = fields.Boolean()
+    perm_unlink = fields.Boolean()
     # "global" is a keyword, so it's not a valid identifier
     # but Python 3 has unicode normalization for identifiers
     # so just run the text through https://yaytext.com/bold-italic/ first
-    𝐠𝐥𝐨𝐛𝐚𝐥: bool
+    𝐠𝐥𝐨𝐛𝐚𝐥 = fields.Boolean()
     def _eval_context(self) -> Dict[Any, Any]: ...
 
 class IrModel(BaseModel):
-    model: Text
+    model = fields.Char(required=True)
 
 class IrModelData(BaseModel):
-    module: Text
-    name: Text
-    res_id: int
+    module = fields.Char(required=True)
+    name = fields.Char(required=True)
+    res_id = fields.Integer(required=True)
 
 class IrModelFields(BaseModel):
-    ttype: Text
-    name: Text
-    model: Text
-    relation: Optional[Text]
-    field_description: Text
-    modules: Text
+    ttype = fields.Char(required=True)
+    name = fields.Char(required=True)
+    model = fields.Char(required=True)
+    relation = fields.Char()
+    field_description = fields.Char(required=True)
+    modules = fields.Char(required=True)  # actually computed
 
 class IrModuleModule(BaseModel):
-    name: Text
-    state: Text
-    installed_version: Text
+    name = fields.Char(required=True)
+    state = fields.Char()
+    installed_version = fields.Char(required=True)  # computed
 
 class IrModuleModuleDependency(BaseModel):
     module_id: IrModuleModule
-    name: Text
+    name = fields.Char()
     depend_id: IrModuleModule
 
 class IrTranslation(BaseModel):
-    src: Text
-    value: Text
+    src = fields.Char()
+    value = fields.Char()
 
 class ResGroups(BaseModel):
-    name: Text
+    name = fields.Char(required=True)
 
 class ResUsers(BaseModel):
-    login: Text
-    active: bool
+    login = fields.Char(required=True)
+    active = fields.Boolean()
     employee_ids: HrEmployee
     def has_group(self, group_ext_id: Text) -> bool: ...
 
 class HrEmployee(BaseModel):
     user_id: ResUsers
-    active: bool
+    active = fields.Boolean()

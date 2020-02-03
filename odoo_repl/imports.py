@@ -47,6 +47,12 @@ else:
     import __builtin__ as builtins
 
 
+if MYPY or odoo is not None and hasattr(odoo, "fields"):
+    Field = odoo.fields.Field
+else:
+    Field = None
+
+
 __all__ = (
     "MYPY",
     "PY3",
@@ -57,4 +63,5 @@ __all__ = (
     "Text",
     "TextLike",
     "builtins",
+    "Field",
 )

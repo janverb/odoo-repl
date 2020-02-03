@@ -77,6 +77,7 @@ from odoo_repl.imports import (
     t,
     Text,
     builtins,
+    Field,
 )
 from odoo_repl.opdb import set_trace, post_mortem, pm
 
@@ -295,7 +296,7 @@ def odoo_print(obj, **kwargs):
 
 
 def _fmt_properties(field):
-    # type: (odoo.fields.Field) -> t.Text
+    # type: (Field) -> t.Text
     return "".join(
         attr[0] if getattr(field, attr, False) else " "
         for attr in ["required", "store", "default"]
@@ -446,7 +447,7 @@ def record_repr(obj):
 
 
 def _has_computer(field):
-    # type: (odoo.fields.Field) -> bool
+    # type: (Field) -> bool
     return (
         field.compute is not None
         or type(getattr(field, "column", None)).__name__ == "function"
@@ -454,7 +455,7 @@ def _has_computer(field):
 
 
 def _find_computer(env, field):
-    # type: (odoo.api.Environment, odoo.fields.Field) -> object
+    # type: (odoo.api.Environment, Field) -> object
     if field.compute is not None:
         func = field.compute
         func = getattr(func, "__func__", func)
@@ -490,7 +491,7 @@ def _decipher_lambda(func):
 
 
 def _find_field_default(model, field):
-    # type: (odoo.models.BaseModel, odoo.fields.Field) -> object
+    # type: (odoo.models.BaseModel, Field) -> object
     # TODO: was the commented out code useful?
     if hasattr(model, "_defaults"):  # and not callable(model._defaults[field.name]):
         default = model._defaults[field.name]
@@ -519,7 +520,7 @@ def _find_field_default(model, field):
 
 
 def field_repr(env, field):
-    # type: (odoo.api.Environment, t.Union[FieldProxy, odoo.fields.Field]) -> t.Text
+    # type: (odoo.api.Environment, t.Union[FieldProxy, Field]) -> t.Text
     """List detailed information about a field."""
     # TODO:
     # - .groups, .copy, .states, .inverse, .column[12]
@@ -1382,7 +1383,7 @@ class MethodProxy(object):
 
 class FieldProxy(object):
     def __init__(self, env, field):
-        # type: (odoo.api.Environment, odoo.fields.Field) -> None
+        # type: (odoo.api.Environment, Field) -> None
         self._env = env
         self._real = field
 

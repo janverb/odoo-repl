@@ -3,7 +3,7 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from odoo_repl.imports import odoo, t, MYPY, Text
+from odoo_repl.imports import odoo, t, MYPY, Text, Field
 
 if MYPY:
     Fingerprint = t.Tuple[t.Tuple[t.Text, object], ...]
@@ -15,7 +15,7 @@ def fingerprint(record):
         raise ValueError("To get fingerprints of multiple records, use `fingerprints`.")
 
     def fieldprint(field):
-        # type: (odoo.fields.Field) -> t.Union[bool, t.Text]
+        # type: (Field) -> t.Union[bool, t.Text]
         value = getattr(record, field.name)
         if field.type == "selection":
             assert isinstance(value, (Text, bool))
