@@ -62,9 +62,7 @@ def rule_repr(rule):
     )
     if not groups:
         parts.append(
-            color.green.bold("Everyone")
-            if getattr(rule, "global")
-            else color.red.bold("No-one")
+            color.green.bold("Everyone") if rule["global"] else color.red.bold("No-one")
         )
     else:
         parts.append(groups)

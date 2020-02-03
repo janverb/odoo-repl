@@ -25,6 +25,8 @@ class OdooPlugin(Plugin):
                 return mapped_hook
             if fullname.endswith(".filtered"):
                 return filtered_hook
+            if fullname.endswith(".__getitem__"):
+                return fieldget_hook
         if fullname.startswith("odoo.api.Environment"):
             if fullname.endswith(".__getitem__"):
                 return envget_hook
@@ -95,9 +97,33 @@ def filtered_hook(ctx: MethodContext) -> Type:
                 "Unknown field {!r} on type {!r}".format(part, cur_type.type.fullname),
                 ctx.context,
             )
-            return ctx.default_return_type
+            return AnyType(TypeOfAny.from_error)
         cur_type = field_value.type
     return ctx.default_return_type
+
+
+def fieldget_hook(ctx: MethodContext) -> Type:
+    if (
+        not isinstance(ctx.type, Instance)
+        or len(ctx.args) != 1
+        or len(ctx.args[0]) != 1
+        or not isinstance(ctx.args[0][0], (StrExpr, UnicodeExpr))
+        or not ctx.args[0][0].value
+    ):
+        return ctx.default_return_type
+    field = ctx.args[0][0].value
+    field_value = ctx.type.type.get(field)
+    if (
+        not field_value
+        or not field_value.type
+        or not isinstance(field_value.type, Instance)
+    ):
+        ctx.api.fail(
+            "Unknown field {!r} on model {!r}".format(field, ctx.type.type.fullname),
+            ctx.context,
+        )
+        return AnyType(TypeOfAny.from_error)
+    return field_value.type
 
 
 def envget_hook(ctx: MethodContext) -> Type:
@@ -112,7 +138,7 @@ def envget_hook(ctx: MethodContext) -> Type:
         return ctx.api.named_type("odoo.models." + clsname)  # type: ignore
     except KeyError:
         ctx.api.fail("Unknown model {!r}".format(model), ctx.context)
-        return ctx.default_return_type
+        return AnyType(TypeOfAny.from_error)
 
 
 def _build_vals_dict(
