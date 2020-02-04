@@ -1206,7 +1206,11 @@ class ModelProxy(object):
         assert self._real is not None
         # TODO: handle multiple classes in single file properly
         argv = grep.build_grep_argv(args, kwargs)
-        argv.extend(fname for _module, fname, _lnum in sources.find_source(self._real))
+        seen = set()  # type: t.Set[t.Text]
+        for src in sources.find_source(self._real):
+            if src.fname not in seen:
+                seen.add(src.fname)
+                argv.append(src.fname)
         subprocess.Popen(argv).wait()
 
     def methods_(self):
