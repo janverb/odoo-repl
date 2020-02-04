@@ -15,7 +15,11 @@ from typing_extensions import Literal
 
 from odoo.models import AnyModel, BaseModel
 
-class Field:
+T = TypeVar("T")
+Required = TypeVar("Required", bound=bool)
+AnyField = TypeVar("AnyField", bound=Field[object, bool])
+
+class Field(Generic[T, Required]):
     name: Text
     model_name: Text
     comodel_name: Text
@@ -27,35 +31,28 @@ class Field:
     default: object
     help: Optional[Text]
     related: Optional[Sequence[Text]]
-    inverse_fields: Sequence[Field]  # Only in older versions
+    inverse_fields: Sequence[Field[Any, Any]]  # Only in older versions
     selection: List[Tuple[Text, Text]]  # Only on selection fields
-
-class Char(Field):
+    def __init__(self, *, required: bool = ...) -> None: ...
     @overload
-    def __new__(cls, required: Literal[True]) -> _RChar: ...
+    def __get__(self: AnyField, record: None, owner: Type[BaseModel]) -> AnyField: ...
+    # mypy does not understand this
+    # currently it just assumes -> T for everything, this should be fixed
+    # perhaps in the plugin, perhaps by avoiding literals
     @overload
-    def __new__(cls) -> Char: ...
-    def __get__(self, record: Any, owner: Any) -> Optional[Text]: ...
-
-class _RChar(Char):
-    def __get__(self, record: Any, owner: Any) -> Text: ...
-
-class Integer(Field):
+    def __get__(
+        self: Field[T, Literal[True]], record: BaseModel, owner: Type[BaseModel]
+    ) -> T: ...
     @overload
-    def __new__(cls, required: Literal[True]) -> _RInteger: ...
-    @overload
-    def __new__(cls) -> Integer: ...
-    def __get__(self, record: Any, owner: Any) -> Optional[int]: ...
+    def __get__(
+        self: Field[T, Literal[False]], record: BaseModel, owner: Type[BaseModel]
+    ) -> Optional[T]: ...
 
-class _RInteger(Integer):
-    def __get__(self, record: Any, owner: Any) -> int: ...
+class Char(Field[Text, Required]):
+    pass
 
-class Boolean(Field):
-    @overload
-    def __new__(cls, required: Literal[True]) -> _RBoolean: ...
-    @overload
-    def __new__(cls) -> Boolean: ...
-    def __get__(self, record: Any, owner: Any) -> Optional[bool]: ...
+class Integer(Field[int, Required]):
+    pass
 
-class _RBoolean(Boolean):
-    def __get__(self, record: Any, owner: Any) -> bool: ...
+class Boolean(Field[bool, Required]):
+    pass

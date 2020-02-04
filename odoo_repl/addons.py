@@ -158,7 +158,7 @@ class Addon(object):
             state = color.green.bold(state.capitalize())
         elif state in ("uninstallable", "uninstalled"):
             state = color.red.bold(state.capitalize())
-        elif state is None:
+        elif not state:
             state = color.yellow.bold("???")
         else:
             state = color.yellow.bold(state.capitalize())

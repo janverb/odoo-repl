@@ -47,7 +47,9 @@ else:
     import __builtin__ as builtins
 
 
-if MYPY or odoo is not None and hasattr(odoo, "fields"):
+if MYPY:
+    Field = odoo.fields.Field[t.Any, t.Any]
+elif odoo is not None and hasattr(odoo, "fields"):
     Field = odoo.fields.Field
 else:
     Field = None

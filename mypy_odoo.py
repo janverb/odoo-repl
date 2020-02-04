@@ -1,13 +1,12 @@
-# TODO:
-# - typecheck .search()
-# - typecheck multi/single records?
-# - generate model info from Odoo runtime
 import typing as t
 
 from collections import OrderedDict
 
+from mypy import checker
+from mypy import checkmember
 from mypy.nodes import StrExpr, UnicodeExpr, ARG_POS
 from mypy.plugin import (
+    FunctionContext,
     MethodContext,
     MethodSigContext,
     Plugin,
@@ -17,10 +16,10 @@ from mypy.types import (
     CallableType,
     Type,
     Instance,
+    LiteralType,
     TypedDictType,
     AnyType,
     TypeOfAny,
-    ProperType,
 )
 
 
@@ -35,7 +34,7 @@ class OdooPlugin(Plugin):
                 return filtered_hook
             if fullname.endswith(".__getitem__"):
                 return fieldget_hook
-        if fullname.startswith("odoo.api.Environment"):
+        if fullname.startswith("odoo.api.Environment."):
             if fullname.endswith(".__getitem__"):
                 return envget_hook
         return None
@@ -48,6 +47,13 @@ class OdooPlugin(Plugin):
                 return create_hook
             if fullname.endswith(".write"):
                 return write_hook
+        return None
+
+    def get_function_hook(
+        self, fullname: str
+    ) -> t.Optional[t.Callable[[FunctionContext], Type]]:
+        if fullname.startswith("odoo.fields."):
+            return newfield_hook
         return None
 
 
@@ -64,37 +70,7 @@ def mapped_hook(ctx: MethodContext) -> Type:
         return ctx.default_return_type
     cur_type = ctx.type  # type: Type
     for part in field.split("."):
-        if not isinstance(cur_type, Instance):
-            ctx.api.fail("Can't get {!r} from {!r}".format(part, cur_type), ctx.context)
-            return AnyType(TypeOfAny.from_error)
-        field_value = cur_type.type.get(part)
-        if (
-            not field_value
-            or not field_value.type
-            or not isinstance(field_value.type, Instance)
-        ):
-            ctx.api.fail(
-                "Unknown field {!r} on type {!r}".format(part, cur_type.type.fullname),
-                ctx.context,
-            )
-            return AnyType(TypeOfAny.from_error)
-        if field_value.type.type.fullname.startswith("odoo.fields."):
-            get = field_value.type.type.get("__get__")
-            if (
-                not get
-                or not isinstance(get.type, CallableType)
-                or not isinstance(get.type.ret_type, ProperType)
-            ):
-                ctx.api.fail(
-                    "Unexpected type while analyzing {!r}".format(
-                        field_value.type.type.fullname
-                    ),
-                    ctx.context,
-                )
-                return AnyType(TypeOfAny.from_error)
-            cur_type = get.type.ret_type
-        else:
-            cur_type = field_value.type
+        cur_type = _access_member(cur_type, part, ctx)
     if isinstance(cur_type, Instance):
         if cur_type.type.fullname.startswith("odoo.models."):
             return cur_type
@@ -114,37 +90,7 @@ def filtered_hook(ctx: MethodContext) -> Type:
         return ctx.default_return_type
     cur_type = ctx.type  # type: Type
     for part in field.split("."):
-        if not isinstance(cur_type, Instance):
-            ctx.api.fail("Can't get {!r} from {!r}".format(part, cur_type), ctx.context)
-            return AnyType(TypeOfAny.from_error)
-        field_value = cur_type.type.get(part)
-        if (
-            not field_value
-            or not field_value.type
-            or not isinstance(field_value.type, Instance)
-        ):
-            ctx.api.fail(
-                "Unknown field {!r} on type {!r}".format(part, cur_type.type.fullname),
-                ctx.context,
-            )
-            return AnyType(TypeOfAny.from_error)
-        if field_value.type.type.fullname.startswith("odoo.fields."):
-            get = field_value.type.type.get("__get__")
-            if (
-                not get
-                or not isinstance(get.type, CallableType)
-                or not isinstance(get.type.ret_type, ProperType)
-            ):
-                ctx.api.fail(
-                    "Unexpected type while analyzing {!r}".format(
-                        field_value.type.type.fullname
-                    ),
-                    ctx.context,
-                )
-                return AnyType(TypeOfAny.from_error)
-            cur_type = get.type.ret_type
-        else:
-            cur_type = field_value.type
+        cur_type = _access_member(cur_type, part, ctx)
     return ctx.default_return_type
 
 
@@ -158,23 +104,7 @@ def fieldget_hook(ctx: MethodContext) -> Type:
     ):
         return ctx.default_return_type
     field = ctx.args[0][0].value
-    f_obj = ctx.type.type.get(field)
-    if not f_obj or not isinstance(f_obj.type, Instance):
-        ctx.api.fail(
-            "Didn't find field {!r} on {!r}".format(field, ctx.type.type.fullname),
-            ctx.context,
-        )
-        return AnyType(TypeOfAny.from_error)
-    get = f_obj.type.type.get("__get__")
-    if not get or not isinstance(get.type, CallableType):
-        ctx.api.fail(
-            "Didn't find descriptor for {!r} on {!r}".format(
-                field, ctx.type.type.fullname
-            ),
-            ctx.context,
-        )
-        return AnyType(TypeOfAny.from_error)
-    return get.type.ret_type
+    return _access_member(ctx.type, field, ctx)
 
 
 def envget_hook(ctx: MethodContext) -> Type:
@@ -190,6 +120,25 @@ def envget_hook(ctx: MethodContext) -> Type:
     except KeyError:
         ctx.api.fail("Unknown model {!r}".format(model), ctx.context)
         return AnyType(TypeOfAny.from_error)
+
+
+def newfield_hook(ctx: FunctionContext) -> Type:
+    if not isinstance(ctx.default_return_type, Instance):
+        return ctx.default_return_type
+    if ctx.arg_names and ["required"] in ctx.arg_names:
+        req_type = ctx.arg_types[ctx.arg_names.index(["required"])][0]
+        if (
+            not isinstance(req_type, Instance)
+            or not isinstance(req_type.last_known_value, LiteralType)
+            or not isinstance(req_type.last_known_value.value, bool)
+        ):
+            ctx.api.fail("Can't decipher whether field is required or not", ctx.context)
+            return ctx.default_return_type
+        required = req_type.last_known_value
+    else:
+        bool_type = ctx.api.named_type("bool")  # type: ignore
+        required = LiteralType(False, bool_type)
+    return ctx.default_return_type.copy_modified(args=[required])
 
 
 def _build_vals_dict(
@@ -240,6 +189,21 @@ def write_hook(ctx: MethodSigContext) -> CallableType:
         ["vals"],
         ctx.default_signature.ret_type,
         ctx.default_signature.fallback,
+    )
+
+
+def _access_member(typ: Type, name: str, ctx: MethodContext) -> Type:
+    assert isinstance(ctx.api, checker.TypeChecker)
+    return checkmember.analyze_member_access(
+        name=name,
+        typ=typ,
+        context=ctx.context,
+        is_lvalue=False,
+        is_super=False,
+        is_operator=False,
+        msg=ctx.api.msg,
+        original_type=typ,
+        chk=ctx.api,
     )
 
 

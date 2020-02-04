@@ -31,7 +31,7 @@ T = TypeVar("T")
 AnyModel = TypeVar("AnyModel", bound=BaseModel)
 
 class BaseModel:
-    _fields: Dict[Text, Field]
+    _fields: Dict[Text, Field[Any, Any]]
     _table: Text
     _name: Text
     _description: Text
