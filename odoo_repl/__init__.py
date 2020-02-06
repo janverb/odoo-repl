@@ -162,12 +162,12 @@ def create_namespace(
 
     def translate(text):
         # type: (t.Text) -> None
-        translations = env[u"ir.translation"].search(
+        translations = env["ir.translation"].search(
             ["|", ("src", "=", text), ("value", "=", text)]
         )
         if not translations:
             text = "%" + text + "%"
-            translations = env[u"ir.translation"].search(
+            translations = env["ir.translation"].search(
                 ["|", ("src", "ilike", text), ("value", "ilike", text)]
             )
         odoo_print(translations)
@@ -526,7 +526,7 @@ def field_repr(env, field):
     # - .groups, .copy, .states, .inverse, .column[12]
     field = util.unwrap(field)
     model = env[field.model_name]
-    record = env[u"ir.model.fields"].search(
+    record = env["ir.model.fields"].search(
         [("model", "=", field.model_name), ("name", "=", field.name)]
     )
     if len(record) > 1:
@@ -1133,7 +1133,7 @@ class ModelProxy(object):
         # type: () -> odoo.models.IrModel
         """Get the ir.model record of the model."""
         self._ensure_real()
-        return self._env[u"ir.model"].search([("model", "=", self._path)])
+        return self._env["ir.model"].search([("model", "=", self._path)])
 
     def shuf_(self, num=1):
         # type: (int) -> odoo.models.BaseModel
@@ -1246,12 +1246,12 @@ def _to_user(
     # type: (...) -> odoo.models.ResUsers
     if isinstance(user, Text):
         login = user
-        user = env[u"res.users"].search([("login", "=", login)])
+        user = env["res.users"].search([("login", "=", login)])
         if len(user) != 1:
             raise ValueError("No user {!r}".format(login))
         return user
     elif isinstance(user, int):
-        return env[u"res.users"].browse(user)
+        return env["res.users"].browse(user)
     if not isinstance(user, odoo.models.BaseModel):
         raise ValueError("Can't convert type of {!r} to user".format(user))
     if user._name == "res.users":
