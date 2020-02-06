@@ -529,6 +529,12 @@ def field_repr(env, field):
     record = env[u"ir.model.fields"].search(
         [("model", "=", field.model_name), ("name", "=", field.name)]
     )
+    if len(record) > 1:
+        # This is rare, but apparently valid
+        # TODO: pick intelligently based on MRO
+        record = record[-1]
+    elif not record:
+        return color.missing("No ir.model.fields record found for field")
     parts = []  # type: t.List[t.Text]
     parts.append(
         "{} {} on {}".format(
