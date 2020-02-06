@@ -2,8 +2,11 @@ import typing as t
 
 from collections import OrderedDict
 
-from mypy import checker
-from mypy import checkmember
+import mypy
+
+from mypy import nodes
+from mypy import types
+
 from mypy.nodes import StrExpr, UnicodeExpr, ARG_POS
 from mypy.plugin import (
     FunctionContext,
@@ -20,6 +23,7 @@ from mypy.types import (
     TypedDictType,
     AnyType,
     TypeOfAny,
+    NoneType,
 )
 
 
@@ -37,6 +41,9 @@ class OdooPlugin(Plugin):
         if fullname.startswith("odoo.api.Environment."):
             if fullname.endswith(".__getitem__"):
                 return envget_hook
+        if fullname.startswith("odoo.fields."):
+            if fullname.endswith(".__get__"):
+                return fieldvalget_hook
         return None
 
     def get_method_signature_hook(
@@ -122,6 +129,26 @@ def envget_hook(ctx: MethodContext) -> Type:
         return AnyType(TypeOfAny.from_error)
 
 
+def fieldvalget_hook(ctx: MethodContext) -> Type:
+    arg1 = ctx.args[0][0]
+    if isinstance(arg1, nodes.TempNode) and isinstance(arg1.type, types.NoneType):
+        # TODO: Probably can't count on it always being a TempNode
+        return ctx.default_return_type
+    if not isinstance(ctx.type, types.Instance):
+        return ctx.default_return_type
+    req_arg = ctx.type.args[0]
+    if not isinstance(req_arg, types.LiteralType):
+        return ctx.default_return_type
+    required = req_arg.value
+    valtype = ctx.type.type.bases[0].args[0]
+    if required:
+        return valtype
+    else:
+        bool_type = ctx.api.named_type("bool")  # type: ignore
+        lit_false = types.LiteralType(False, bool_type)
+        return types.UnionType([valtype, lit_false])
+
+
 def newfield_hook(ctx: FunctionContext) -> Type:
     if not isinstance(ctx.default_return_type, Instance):
         return ctx.default_return_type
@@ -193,8 +220,8 @@ def write_hook(ctx: MethodSigContext) -> CallableType:
 
 
 def _access_member(typ: Type, name: str, ctx: MethodContext) -> Type:
-    assert isinstance(ctx.api, checker.TypeChecker)
-    return checkmember.analyze_member_access(
+    assert isinstance(ctx.api, mypy.checker.TypeChecker)
+    return mypy.checkmember.analyze_member_access(
         name=name,
         typ=typ,
         context=ctx.context,
