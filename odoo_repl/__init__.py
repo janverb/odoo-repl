@@ -1634,10 +1634,8 @@ class DataModuleBrowser(object):
                     "SELECT model FROM ir_model_data WHERE module = %s AND name = %s",
                     self._module,
                     attr,
-                )[
-                    0
-                ]  # type: str
-                return self._env[model]
+                )  # type: t.List[str]
+                return self._env[model[0]]
             raise
         setattr(self, attr, record)
         return record
@@ -1668,6 +1666,7 @@ def _BaseModel_source_(record, location=None, context=False):
                 print(sources.format_source(definition.to_source()))
                 src = lxml.etree.tostring(elem, encoding="unicode")
                 # In perverse cases dedenting may change the meaning
+                # But we accept that risk
                 src = textwrap.dedent(" " * 80 + src).strip()
                 print(color.highlight(src, "xml"))
 

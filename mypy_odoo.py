@@ -2,8 +2,8 @@ import typing as t
 
 from collections import OrderedDict
 
-import mypy
-
+from mypy import checker
+from mypy import checkmember
 from mypy import nodes
 from mypy import types
 
@@ -23,7 +23,6 @@ from mypy.types import (
     TypedDictType,
     AnyType,
     TypeOfAny,
-    NoneType,
 )
 
 
@@ -220,8 +219,8 @@ def write_hook(ctx: MethodSigContext) -> CallableType:
 
 
 def _access_member(typ: Type, name: str, ctx: MethodContext) -> Type:
-    assert isinstance(ctx.api, mypy.checker.TypeChecker)
-    return mypy.checkmember.analyze_member_access(
+    assert isinstance(ctx.api, checker.TypeChecker)
+    return checkmember.analyze_member_access(
         name=name,
         typ=typ,
         context=ctx.context,
