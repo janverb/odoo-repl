@@ -47,6 +47,12 @@ else:
     import __builtin__ as builtins
 
 
+if PY3:
+    from io import StringIO
+else:
+    from StringIO import StringIO
+
+
 if MYPY:
     Field = odoo.fields.Field[t.Any, t.Any]
 elif odoo is not None and hasattr(odoo, "fields"):
@@ -66,4 +72,5 @@ __all__ = (
     "TextLike",
     "builtins",
     "Field",
+    "StringIO",
 )

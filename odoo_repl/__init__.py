@@ -78,6 +78,7 @@ from odoo_repl.imports import (
     Text,
     builtins,
     Field,
+    StringIO,
 )
 from odoo_repl.opdb import set_trace, post_mortem, pm
 
@@ -128,8 +129,10 @@ def create_namespace(
                 "or pass it as the first argument to odoo_repl.enable()."
             )
         cursor = odoo.sql_db.db_connect(db_name).cursor()
-        env = odoo.api.Environment(cursor, odoo.SUPERUSER_ID, {})
         atexit.register(cursor.close)
+        if not hasattr(odoo.api.Environment._local, "environments"):
+            odoo.api.Environment._local.environments = odoo.api.Environments()
+        env = odoo.api.Environment(cursor, odoo.SUPERUSER_ID, {})
     elif isinstance(db, odoo.sql_db.Cursor):
         env = odoo.api.Environment(db, odoo.SUPERUSER_ID, {})
     elif isinstance(db, odoo.api.Environment):
@@ -773,7 +776,12 @@ def displayhook(obj):
     # type: (object) -> None
     """A sys.displayhook replacement that pretty-prints models and records."""
     if obj is not None:
-        print(odoo_repr(obj))
+        rep = odoo_repr(obj)
+        if not PY3 and isinstance(sys.stdout, StringIO):
+            # Printing unicode causes issues in Pyrasite
+            rep = rep.replace(u"×", "x")
+            rep = rep.encode("ascii", errors="backslashreplace")
+        print(rep)
         builtins._ = obj  # type: ignore
 
 
