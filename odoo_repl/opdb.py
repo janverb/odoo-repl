@@ -120,6 +120,15 @@ class OPdb(pdb.Pdb, object):
             # TODO: this might also be printed by the logging
             print(err)
 
+    def is_skipped_module(self, module_name):
+        # type: (t.Optional[str]) -> bool
+        # Sometimes __name__ doesn't exist, or is None, and fnmatch gets
+        # confused
+        # I don't know if this is because of Odoo or for some other reason
+        if module_name is None:
+            return False
+        return super(OPdb, self).is_skipped_module(module_name)
+
 
 def set_trace():
     # type: () -> None
