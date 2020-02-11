@@ -22,7 +22,9 @@ RE_FIELD = re.compile(
     ^\s*             # leading whitespace from the start of the line
     ['"]?(\w+)['"]?  # field name, quoted if key in a _columns dict
     \s*[:=]\s*       # : for an old-style dict, = for new-style assignment
-    fields\.         # assume "from odoo import fields"
+    fields2?\.       # assume "from odoo import fields"
+                     # rarely, `as fields2` is used when old and new
+                     # style fields are mixed
     (\w+)\(          # a single attribute deep, to avoid
                      # "date = fields.date.today()" false positive
     """,
