@@ -119,6 +119,7 @@ def create_namespace(
     db,  # type: t.Union[None, t.Text, odoo.sql_db.Cursor, odoo.api.Environment]
 ):
     # type: (...) -> t.Tuple[odoo.api.Environment, t.Dict[t.Text, t.Any]]
+    global xml_thread
     if db is None or isinstance(db, Text):
         db_name = db or odoo.tools.config["db_name"]
         if not db_name:
@@ -198,6 +199,9 @@ def create_namespace(
         xml_thread.start()
 
     return env, namespace
+
+
+xml_thread = None  # type: t.Optional[threading.Thread]
 
 
 def enable(
@@ -786,7 +790,7 @@ class EnvProxy(object):
         self.ref = DataBrowser(env)
 
     def __getattr__(self, attr):
-        # type: (str) -> object
+        # type: (str) -> t.Any
         if attr.startswith("__"):
             raise AttributeError
         if hasattr(self._env, attr):
@@ -907,7 +911,7 @@ def _parse_search_query(
 
 
 def _BaseModel_search_(
-    self,  # type: odoo.models.BaseModel
+    self,  # type: t.Union[odoo.models.BaseModel, ModelProxy]
     *args,  # type: object
     **fields  # type: t.Any
 ):
@@ -922,6 +926,7 @@ def _BaseModel_search_(
     # TODO:
     # - inspect fields
     # - handle 2many relations
+    self = util.unwrap(self)
     offset = fields.pop("offset", 0)  # type: int
     limit = fields.pop("limit", None)  # type: t.Optional[int]
     order = fields.pop("order", "id")  # type: t.Optional[t.Text]
@@ -986,7 +991,7 @@ class ModelProxy(object):
         self._nocomplete = nocomplete
 
     def __getattr__(self, attr):
-        # type: (t.Text) -> object
+        # type: (t.Text) -> t.Any
         if attr.startswith("__"):
             raise AttributeError
         if not self._nocomplete:
@@ -1078,7 +1083,7 @@ class ModelProxy(object):
             printer.text(repr(self))
 
     def __getitem__(self, ind):
-        # type: (t.Union[t.Iterable[int], t.Text, int]) -> object
+        # type: (t.Union[t.Iterable[int], t.Text, int]) -> t.Any
         if self._real is None:
             raise KeyError("Model '{}' does not exist".format(self._path))
         if not ind:
@@ -1114,7 +1119,7 @@ class ModelProxy(object):
     def _ipython_key_completions_(self):
         # type: () -> t.List[t.Text]
         assert self._real is not None
-        return list(self._real._fields)
+        return list(self._real._fields) + dir(self._real)  # type: ignore
 
     def _ensure_real(self):
         # type: () -> None

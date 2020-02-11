@@ -55,6 +55,9 @@ def main(argv=sys.argv[1:]):
         help="Immediately quit odoo-repl after starting",
     )
     parser.add_argument(
+        "--run-tests", action="store_true", help="Run tests, then exit",
+    )
+    parser.add_argument(
         "directory", type=str, default=".", nargs="?", help="Buildout directory to use"
     )
     parser.add_argument(
@@ -126,6 +129,14 @@ odoo_repl.enable(session.env, __name__, with_color={color!r}, bg_editor={bg_edit
     if args.command is not None:
         cmd += args.command
 
+    if args.run_tests:
+        cmd += """from odoo_repl import tests
+result = tests.run({database!r})
+sys.exit(1 if result.errors or result.failures else 0)
+""".format(
+            database=args.database
+        )
+
     # python_odoo has a -i flag for an interactive mode, but that's not great
     # It doesn't enable Python 3's readline enhancements, for example
     # So use Python's own -i flag instead
@@ -139,7 +150,7 @@ odoo_repl.enable(session.env, __name__, with_color={color!r}, bg_editor={bg_edit
         argv = [interp, "--no-banner"]
     else:
         argv = [interp]
-    if not args.no_interactive:
+    if not args.no_interactive and not args.run_tests:
         argv.append("-i")
     if args.args:
         argv.extend(shlex.split(args.args))
