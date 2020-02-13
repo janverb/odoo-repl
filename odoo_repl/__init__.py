@@ -119,7 +119,7 @@ def parse_config(argv):
 def create_namespace(
     db,  # type: t.Union[None, t.Text, odoo.sql_db.Cursor, odoo.api.Environment]
 ):
-    # type: (...) -> t.Tuple[odoo.api.Environment, t.Dict[t.Text, t.Any]]
+    # type: (...) -> t.Tuple[odoo.api.Environment, t.Dict[str, t.Any]]
     global xml_thread
     if db is None or isinstance(db, Text):
         db_name = db or odoo.tools.config["db_name"]
@@ -188,7 +188,7 @@ def create_namespace(
         "emp": EmployeeBrowser(env),
         "ref": DataBrowser(env),
         "addons": addons.AddonBrowser(env),
-    }  # type: t.Dict[t.Text, t.Any]
+    }  # type: t.Dict[str, t.Any]
     namespace.update({part: ModelProxy(env, part) for part in envproxy._base_parts()})
 
     if not sources.xml_records:
@@ -209,7 +209,7 @@ xml_thread = None  # type: t.Optional[threading.Thread]
 
 def enable(
     db=None,  # type: t.Union[None, t.Text, odoo.sql_db.Cursor, odoo.api.Environment]
-    module_name=None,  # type: t.Union[None, t.Text, types.ModuleType]
+    module=None,  # type: t.Union[None, t.Text, types.ModuleType]
     with_color=True,  # type: bool
     bg_editor=False,  # type: bool
 ):
@@ -218,29 +218,20 @@ def enable(
 
     :param db: Either an Odoo environment object, an Odoo cursor, a database
                name, or ``None`` to guess the database to use.
-    :param module_name: Either a module, the name of a module, or ``None`` to
-                        install into the module of the caller.
+    :param module: Either a module, the name of a module, or ``None`` to
+                   install into the module of the caller.
     :param bool with_color: Enable colored output.
     :param bool bg_editor: Don't wait for text editors invoked by ``.edit()``
                            to finish.
     """
     global edit_bg
 
-    if module_name is None:
-        try:
-            module_name = sys._getframe().f_back.f_globals["__name__"]
-        except Exception:
-            pass
-        if module_name in {None, "odoo_repl"}:
-            print("Warning: can't determine module_name, assuming '__main__'")
-            module_name = "__main__"
-
-    if module_name in {"__builtin__", "builtins"}:
-        __main__ = builtins  # type: object
-    elif isinstance(module_name, Text):
-        __main__ = importlib.import_module(module_name)
+    if module is None:
+        target_ns = sys._getframe().f_back.f_globals
+    elif isinstance(module, Text):
+        target_ns = vars(importlib.import_module(module))
     else:
-        __main__ = module_name
+        target_ns = vars(module)
 
     env_, to_install = create_namespace(db)
 
@@ -257,8 +248,10 @@ def enable(
     # pdb.Pdb.displayhook = OPdb.displayhook
 
     for name, obj in to_install.items():
-        if not hasattr(builtins, name) and not hasattr(__main__, name):
-            setattr(__main__, name, obj)
+        if not hasattr(builtins, name) and (
+            name not in target_ns or type(target_ns[name]) is type(obj)
+        ):
+            target_ns[name] = obj
 
     if not with_color:
         color.enabled = False
@@ -818,7 +811,7 @@ class EnvProxy(object):
         return sorted(listing)
 
     def _base_parts(self):
-        # type: () -> t.List[t.Text]
+        # type: () -> t.List[str]
         return list({mod.split(".", 1)[0] for mod in self._env.registry})
 
     def __repr__(self):

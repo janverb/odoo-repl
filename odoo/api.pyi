@@ -8,7 +8,7 @@ class Environment:
     prefetch: Dict[Any, Any]  # Only some versions
     user: models.ResUsers
     uid: int
-    registry: Dict[Text, Any]
+    registry: Dict[str, Any]
     _local: ClassVar[Any]
     def __init__(
         self, cursor: Cursor, uid: int, context: Dict[Text, object]

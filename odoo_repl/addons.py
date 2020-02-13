@@ -220,7 +220,7 @@ def _color_state(module):
     # type: (odoo.models.IrModuleModule) -> t.Text
     if module.state == "installed":
         return color.module(module.name)
-    elif module.state == "uninstalled":
+    elif module.state in ("uninstalled", "uninstallable"):
         return color.red.bold(module.name)
     else:
         return color.yellow.bold(module.name)

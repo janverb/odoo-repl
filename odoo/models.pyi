@@ -126,6 +126,7 @@ class IrRule(BaseModel):
 
 class IrModel(BaseModel):
     model = fields.Char(required=True)
+    name = fields.Char(required=True)
 
 class IrModelData(BaseModel):
     module = fields.Char(required=True)
