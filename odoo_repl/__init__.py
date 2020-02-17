@@ -1,27 +1,17 @@
 # -*- coding: utf-8 -*-
 # TODO:
-# - access rights?
 # - FieldProxy to be able to follow e.g. res.users.log_ids.create_date
-# - refactor into submodules
-# - list methods in model_repr
 # - group by implementing module in model_repr
-# - `addons`/`modules` browser object
-#   - addons.mail.[tests|controllers|models|...]
-#   - properly sort even for non-standard directory structure
-#   - method for running tests, either entire module or more granular
-# - show required fields in model summary (shorthand notation?)
 # - .write_()
 # - rename without "odoo" (trademark? CONTRIBUTING.rst#821naming)
 # - don't treat mixins as base
 # - things like constrainers as attributes on field(proxy)
 # - unify .source_() and .edit_() more so you can e.g. do .source_(-1)
 # - show .search in field_repr/as attr on FieldProxy
-#   - this is safe, but doesn't stop the transaction from being aborted
 # - at least document optional bs4 and pygments dependencies
 # - put shuf_() on BaseModel
 # - toggle to start pdb on log message (error/warning/specific message)
 # - grep_ on XML records, for completeness
-# - make separate threads use separate cursors
 
 # hijack `odoo-bin shell`:
 # - write to its stdin and somehow hook it back up to a tty
@@ -34,12 +24,6 @@
 #   - do other modules depend on `code`?
 # - import, monkeypatch, then start normal odoo-bin shell entrypoint
 #   - probably the cleanest
-
-# add tests:
-# - module odoo_repl.tests
-# - CLI flag to run odoo_repl.tests.run_tests(); sys.exit()
-# - checks for Odoo version, presence of demo data, etc.
-# - model after TransactionCase, with new namespace + transaction for each test
 
 from __future__ import print_function
 
