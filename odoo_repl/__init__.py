@@ -1493,11 +1493,15 @@ class RecordBrowser(object):
         try:
             thing = self._env[self._model].search([(self._field, "=", attr)])
         except AttributeError as err:
-            if err.args == ("environments",):
+            if err.args == ("environments",) and not attr.startswith("_"):
                 # This happens when IPython runs completions in a separate thread
                 # Returning an empty record means it can complete without making
                 # queries, even across relations
                 # When the line is actually executed __getattr__ will run again
+                # We check for an underscore at the start to exclude both
+                # dunder attributes and _ipython special methods
+                # Even if a username does start with an underscore this is
+                # acceptable because it only breaks completion
                 return self._env[self._model]
             raise
         if not thing:
@@ -1631,7 +1635,7 @@ class DataModuleBrowser(object):
         except ValueError as err:
             raise AttributeError(err)
         except AttributeError as err:
-            if err.args == ("environments",):
+            if err.args == ("environments",) and not attr.startswith("_"):
                 # Threading issue, try to keep autocomplete working
                 # See RecordBrowser.__getattr__
                 model = util.sql(
