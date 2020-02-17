@@ -123,7 +123,8 @@ def _render_record(obj):
         else:
             try:
                 name = obj.display_name
-                if name:
+                default_name = "{},{}".format(obj._name, obj.id)
+                if name and name != default_name:
                     affix = repr(name)
                     if affix.startswith("u"):
                         # Unicode string literal, distracting

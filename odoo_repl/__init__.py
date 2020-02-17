@@ -404,7 +404,10 @@ def record_repr(obj):
     parts = []
 
     parts.append(_record_header(obj))
-    parts.append(color.display_name(obj.display_name))
+    name = obj.display_name
+    default_name = "{},{}".format(obj._name, obj.id)
+    if name and name != default_name:
+        parts.append(color.display_name(name))
 
     if not obj.exists():
         parts.append(color.missing("Missing"))
