@@ -140,7 +140,7 @@ def find_field_source(field):
 def find_method_source(method):
     # type: (odoo_repl.MethodProxy) -> t.List[Source]
     res = []
-    for cls in type(method.model).mro()[1:]:
+    for cls in type(method.model).__mro__[1:]:
         if method.name in vars(cls):
             func = util.unpack_function(vars(cls)[method.name])
             res.append(

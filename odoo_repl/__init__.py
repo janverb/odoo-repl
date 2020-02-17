@@ -694,7 +694,7 @@ def method_repr(methodproxy):
     doc = inspect.getdoc(method)  # type: t.Optional[t.Text]
     if not doc:
         # inspect.getdoc() can't deal with Odoo's unorthodox inheritance
-        for cls in type(model).mro():
+        for cls in type(model).__mro__:
             if name in vars(cls):
                 doc = inspect.getdoc(vars(cls)[name])
             if doc:
@@ -1358,7 +1358,7 @@ class MethodProxy(object):
 
     def source_(self, location=None):
         # type: (t.Optional[t.Text]) -> None
-        for cls in type(self.model).mro()[1:]:
+        for cls in type(self.model).__mro__[1:]:
             module = util.module(cls)
             if location is not None and location != module:
                 continue
@@ -1380,7 +1380,7 @@ class MethodProxy(object):
         """
         argv = grep.build_grep_argv(args, kwargs)
         first = True
-        for cls in type(self.model).mro()[1:]:
+        for cls in type(self.model).__mro__[1:]:
             if self.name in vars(cls):
                 func = util.unpack_function(vars(cls)[self.name])
                 try:
