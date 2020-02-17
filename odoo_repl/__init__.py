@@ -438,6 +438,21 @@ def record_repr(obj):
             + _color_repr(no_prefetch_obj, field)
         )
 
+    history_lines = []
+    if obj.create_date:
+        create_msg = "Created on {}".format(color.format_date(obj.create_date))
+        if obj.create_uid and obj.create_uid.id != 1:
+            create_msg += " by {}".format(color.render_user(obj.create_uid))
+        history_lines.append(create_msg)
+    if obj.write_date and obj.write_date != obj.create_date:
+        write_msg = "Written on {}".format(color.format_date(obj.write_date))
+        if obj.write_uid and obj.write_uid.id != 1:
+            write_msg += " by {}".format(color.render_user(obj.write_uid))
+        history_lines.append(write_msg)
+    if history_lines:
+        parts.append("")
+        parts.extend(history_lines)
+
     src = sources.find_source(obj)
     if src:
         parts.append("")

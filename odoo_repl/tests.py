@@ -169,6 +169,23 @@ Defines: [^\n]*, res.users, """,
         self.assertEqual(res_users.mod_().model, "res.users")
         self.assertEqual(len(res_users.shuf_(2)), 2)
 
+    def test_create_write_info(self):
+        demo = self.env["res.users"].search([("login", "=", "demo")])
+        self.assertRegex(
+            odoo_repl.odoo_repr(demo),
+            r"""
+Created on 20..-..-.. ..:..:..
+""",
+        )
+        demo.partner_id.sudo(demo).write({"website": "blargh"})
+        self.assertRegex(
+            odoo_repl.odoo_repr(demo.partner_id),
+            r"""
+Created on 20..-..-.. ..:..:..
+Written on 20..-..-.. ..:..:.. by u.demo
+""",
+        )
+
     if not PY3:
         assertRegex = TestCase.assertRegexpMatches
         assertNotRegex = TestCase.assertNotRegexpMatches

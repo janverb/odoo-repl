@@ -43,6 +43,10 @@ class BaseModel:
     @property
     def id(self: AnyModel) -> _RecordId[AnyModel]: ...
     display_name: Text
+    create_date = fields.Datetime()
+    create_uid: ResUsers
+    write_date = fields.Datetime()
+    write_uid: ResUsers
     def browse(self: AnyModel, ids: Union[int, Sequence[int]]) -> AnyModel: ...
     def exists(self: AnyModel) -> AnyModel: ...
     def sudo(self: AnyModel, user: Union[int, ResUsers]) -> AnyModel: ...
@@ -163,7 +167,11 @@ class ResUsers(BaseModel):
     login = fields.Char(required=True)
     active = fields.Boolean()
     employee_ids: HrEmployee
+    partner_id: ResPartner
     def has_group(self, group_ext_id: Text) -> bool: ...
+
+class ResPartner(BaseModel):
+    pass
 
 class HrEmployee(BaseModel):
     user_id: ResUsers

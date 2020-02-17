@@ -77,6 +77,16 @@ def color_field(field_obj):
     return f_type
 
 
+def render_user(obj):
+    # type: (odoo.models.ResUsers) -> t.Text
+    return ", ".join(
+        record(odoo_repl.UserBrowser._repr_for_value(user.login))
+        if user.login and user.active
+        else record("res.users[{}]".format(user.id))
+        for user in obj
+    )
+
+
 def _render_record(obj):
     # type: (odoo.models.BaseModel) -> t.Text
     if not hasattr(obj, "_ids") or not obj._ids:
@@ -87,12 +97,7 @@ def _render_record(obj):
         if obj._name == "res.users":
             if MYPY:
                 assert isinstance(obj, odoo.models.ResUsers)
-            return ", ".join(
-                record(odoo_repl.UserBrowser._repr_for_value(user.login))
-                if user.login and user.active
-                else record("res.users[{}]".format(user.id))
-                for user in obj
-            )
+            return render_user(obj)
         elif obj._name == "hr.employee":
             if MYPY:
                 assert isinstance(obj, odoo.models.HrEmployee)
@@ -177,3 +182,10 @@ def highlight(src, syntax="python"):
         else:
             raise ValueError("Unknown syntax {!r}".format(syntax))
         return pyg_highlight(src, lexer, TerminalFormatter())  # type: ignore
+
+
+def format_date(date_obj):
+    # type: (t.Union[datetime, t.Text]) -> t.Text
+    if isinstance(date_obj, datetime):
+        date_obj = date_obj.strftime(odoo.fields.DATETIME_FORMAT)
+    return blue.bold(date_obj)

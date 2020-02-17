@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import (
     Any,
     List,
@@ -6,6 +7,7 @@ from typing import (
     Text,
     Tuple,
     Type,
+    Union,
     Generic,
     TypeVar,
     overload,
@@ -14,6 +16,8 @@ from typing import (
 from typing_extensions import Literal
 
 from odoo.models import AnyModel, BaseModel
+
+DATETIME_FORMAT: str
 
 T = TypeVar("T")
 Required = TypeVar("Required", bound=bool)
@@ -55,4 +59,7 @@ class Integer(Field[int, Required]):
     pass
 
 class Boolean(Field[bool, Required]):
+    pass
+
+class Datetime(Field[Union[datetime, Text], Required]):
     pass
