@@ -62,6 +62,8 @@ rate_ids:               res.currency.rate[129] (ref.base.rateEUR)
 rounding:               0.01
 symbol:                 '€'
 
+Written on 2020-02-11 13:00:34
+
 base: [...]/odoo/addons/base/data/res_currency_data.xml:1157
 ```
 
