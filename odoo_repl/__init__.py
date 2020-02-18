@@ -8,11 +8,14 @@
 # - things like constrainers as attributes on field(proxy)
 # - unify .source_() and .edit_() more so you can e.g. do .source_(-1)
 # - show .search in field_repr/as attr on FieldProxy
-# - at least document optional pygments dependency
 # - put shuf_() on BaseModel
 # - toggle to start pdb on log message (error/warning/specific message)
 # - grep_ on XML records, for completeness
 # - use stdlib xml instead of lxml
+# - test on/support Odoo 13
+# - test on Odoo 9 and 11
+# - write more tests
+# - better buildout integration
 
 # hijack `odoo-bin shell`:
 # - write to its stdin and somehow hook it back up to a tty

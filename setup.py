@@ -16,13 +16,14 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     package_data={"odoo_repl": ["py.typed"]},
     entry_points={"console_scripts": ["odoo-repl = odoo_repl.run:main"]},
-    license="AGPLv3+",
+    extras_require={"color": ["Pygments"]},
+    license="LGPLv3+",
     classifiers=[
         "Framework :: Odoo",
         "Framework :: Buildout",
         "Development Status :: 3 - Alpha",
-        "License :: OSI Approved :: GNU Affero General Public License v3 or "
-        "later (AGPLv3+)",
+        "License :: OSI Approved :: GNU Lesser General Public License v3 or "
+        "later (LGPLv3+)",
         "Intended Audience :: Developers",
         "Environment :: Console",
         "Programming Language :: Python :: 2",

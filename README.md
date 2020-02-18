@@ -126,3 +126,5 @@ These all support additional methods `.source_()`, `.grep_()`, and `.edit_()`. `
 607:            raise exceptions.ValidationError(_("ERROR: the file must be a PDF"))
 612:                raise exceptions.ValidationError(_("ERROR: Invalid list of pages to split. Example: 1,5-9,10"))
 ```
+
+Source code is printed with syntax highlighting if the `Pygments` library is installed. This is declared as an extra dependency, and will be installed automatically if `odoo-repl` is installed as `odoo-repl[color]`.
