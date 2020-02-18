@@ -8,10 +8,11 @@
 # - things like constrainers as attributes on field(proxy)
 # - unify .source_() and .edit_() more so you can e.g. do .source_(-1)
 # - show .search in field_repr/as attr on FieldProxy
-# - at least document optional bs4 and pygments dependencies
+# - at least document optional pygments dependency
 # - put shuf_() on BaseModel
 # - toggle to start pdb on log message (error/warning/specific message)
 # - grep_ on XML records, for completeness
+# - use stdlib xml instead of lxml
 
 # hijack `odoo-bin shell`:
 # - write to its stdin and somehow hook it back up to a tty
@@ -41,7 +42,6 @@ import re
 import string
 import subprocess
 import sys
-import textwrap
 import threading
 import types
 
@@ -54,7 +54,6 @@ from odoo_repl import opdb
 from odoo_repl import sources
 from odoo_repl import util
 from odoo_repl.imports import (
-    MYPY,
     PY3,
     abc,
     odoo,
@@ -65,9 +64,6 @@ from odoo_repl.imports import (
     StringIO,
 )
 from odoo_repl.opdb import set_trace, post_mortem, pm
-
-if MYPY:
-    import bs4
 
 __all__ = ("odoo_repr", "enable", "set_trace", "post_mortem", "pm", "forensics", "opdb")
 
@@ -1184,8 +1180,8 @@ class ModelProxy(object):
         user=None,  # type: t.Optional[t.Union[t.Text, int, odoo.models.ResUsers]]
         **kwargs  # type: t.Any
     ):
-        # type: (...) -> t.Union[_PrettySoup, t.Text]
-        """Build up a view as a user. Returns beautifulsoup of the XML.
+        # type: (...) -> None
+        """Build up and print a view as a user.
 
         Takes the same arguments as ir.model.fields_view_get, notably
         view_id and view_type.
@@ -1200,7 +1196,19 @@ class ModelProxy(object):
         if context is not None:
             model = model.with_context(context)
         form = model.fields_view_get(**kwargs)["arch"]
-        return _PrettySoup._from_string(form)
+        try:
+            import lxml.etree
+        except ImportError:
+            pass
+        else:
+            form = lxml.etree.tostring(
+                lxml.etree.fromstring(
+                    form, lxml.etree.XMLParser(remove_blank_text=True)
+                ),
+                pretty_print=True,
+                encoding="unicode",
+            )
+        print(color.highlight(form, "xml"))
 
     def sql_(self):
         # type: () -> None
@@ -1271,53 +1279,6 @@ def _to_user(
     if getattr(candidate, "_name", None) != "res.users":
         raise ValueError("{!r} is not a user".format(candidate))
     return candidate  # type: ignore
-
-
-class _PrettySoup(object):
-    """A wrapper around beautifulsoup tag soup to make the repr pretty.
-
-    See https://www.crummy.com/software/BeautifulSoup/bs4/doc/ for more useful
-    things to do.
-    """
-
-    def __init__(self, soup):
-        # type: (bs4.BeautifulSoup) -> None
-        self._real = soup
-
-    @classmethod
-    def _from_string(cls, text):
-        # type: (t.Text) -> t.Union[t.Text, bs4.BeautifulSoup]
-        try:
-            # Requires bs4 and lxml
-            from bs4 import BeautifulSoup
-
-            return cls(BeautifulSoup(text, "xml"))
-        except ImportError as err:
-            print("Couldn't soupify XML: {}".format(err))
-            return text
-
-    def __getattr__(self, attr):
-        # type: (str) -> object
-        return getattr(self._real, attr)
-
-    def __dir__(self):
-        # type: () -> t.List[str]
-        return dir(self._real)
-
-    def __getitem__(self, ind):
-        # type: (object) -> object
-        return self._real[ind]
-
-    def __call__(self, *args, **kwargs):
-        # type: (object, object) -> object
-        return self._real(*args, **kwargs)
-
-    def __repr__(self):
-        # type: () -> str
-        src = self._real.prettify()
-        if not PY3:
-            src = src.encode("ascii", errors="xmlcharrefreplace")
-        return str(color.highlight(src, "xml"))
 
 
 class MethodProxy(object):
@@ -1680,9 +1641,6 @@ def _BaseModel_source_(record, location=None, context=False):
                 elem = definition.elem.getroottree() if context else definition.elem
                 print(sources.format_source(definition.to_source()))
                 src = lxml.etree.tostring(elem, encoding="unicode")
-                # In perverse cases dedenting may change the meaning
-                # But we accept that risk
-                src = textwrap.dedent(" " * 80 + src).strip()
                 print(color.highlight(src, "xml"))
 
 
