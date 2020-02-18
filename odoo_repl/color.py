@@ -164,7 +164,9 @@ def color_value(obj, field_type):
 def highlight(src, syntax="python"):
     # type: (t.Text, t.Text) -> t.Text
     """Apply syntax highlighting. Only available if pygments is installed."""
-    src = textwrap.dedent(" " * 80 + src).strip()
+    if syntax == "xml":
+        src = " " * 80 + src
+    src = textwrap.dedent(src).strip()
     if not enabled:
         return src
     try:
