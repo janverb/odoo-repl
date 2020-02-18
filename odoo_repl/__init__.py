@@ -11,8 +11,6 @@
 # - put shuf_() on BaseModel
 # - toggle to start pdb on log message (error/warning/specific message)
 # - grep_ on XML records, for completeness
-# - use stdlib xml instead of lxml
-# - test on/support Odoo 13
 # - test on Odoo 9 and 11
 # - write more tests
 # - better buildout integration

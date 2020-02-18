@@ -72,22 +72,22 @@ class TestOdooRepl(TestCase):
     def test_field_repr(self):
         self.assertRegex(
             odoo_repl.field_repr(self.real_env, self.env["res.users"].login),
-            r"""^char login on res.users \(required, store, related_sudo\)
+            r"""^char login on res.users \(required, store(, related_sudo)?\)
 Login: Used to log into the system
 base: /[^\n]*/res_users.py:\d+$""",
         )
         self.assertRegex(
             odoo_repl.field_repr(self.real_env, self.env["res.users"].company_id),
             r"""^many2one company_id on res.users to res.company"""
-            r""" \(required, store, related_sudo\)
-Company: The company this user is currently working for.(
+            r""" \(required, store(, related_sudo)?\)
+Company: The [^\n]*\.(
 Constrained by _check_company)?
-Default value: _get_company
+Default value: (_get_company|lambda self: self\.env\.company\.id)
 base: /[^\n]*/res_users.py:\d+$""",
         )
         self.assertRegex(
             odoo_repl.field_repr(self.real_env, self.env["res.currency"].date),
-            r"""^date date on res.currency \(readonly, related_sudo\)
+            r"""^date date on res.currency \(readonly(, related_sudo)?\)
 Date
 Computed by _?compute_date
 base: /[^\n]*/res_currency.py:\d+$""",
@@ -128,8 +128,8 @@ base: /[^\n]*/res_currency.py:\d+$""",
 (Uni|I)nstalled
 Authentication via LDAP
 
-Depends: base(, base_setup)?
-Dependents: users_ldap_[a-zA-Z0-9_, ]*
+Depends: base(, base_setup)?(
+Dependents: users_ldap_[a-zA-Z0-9_, ]*)?
 
 Adds support for authentication by LDAP server.
 ===============================================""",
