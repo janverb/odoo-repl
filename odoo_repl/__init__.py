@@ -633,7 +633,10 @@ def field_repr(env, field):
             parts.append("Default value: {!r}".format(default))
 
     if record.ttype == "selection":
-        parts.append(pprint.pformat(field.selection))
+        sel = pprint.pformat(field.selection)  # type: t.Text
+        if isinstance(field.selection, list):
+            sel = color.highlight(sel)
+        parts.append(sel)
 
     src = sources.find_source(field)
     parts.extend(sources.format_sources(src))
