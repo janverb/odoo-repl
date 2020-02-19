@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 import pprint
 
 import odoo_repl
+
 from odoo_repl import color
 from odoo_repl.imports import odoo, t
 

@@ -36,9 +36,7 @@ import importlib
 import inspect
 import logging
 import os
-import pprint
 import random
-import re
 import subprocess
 import sys
 import threading
@@ -47,8 +45,10 @@ import types
 from odoo_repl import access
 from odoo_repl import addons
 from odoo_repl import color
+from odoo_repl import fields
 from odoo_repl import forensics
 from odoo_repl import grep
+from odoo_repl import methods
 from odoo_repl import opdb
 from odoo_repl import shorthand
 from odoo_repl import sources
@@ -255,10 +255,10 @@ def odoo_repr(obj):
     # type: (object) -> t.Text
     if isinstance(obj, ModelProxy):
         return model_repr(obj)
-    elif isinstance(obj, MethodProxy):
-        return method_repr(obj)
-    elif isinstance(obj, FieldProxy):
-        return field_repr(obj._env, obj._real)
+    elif isinstance(obj, methods.MethodProxy):
+        return methods.method_repr(obj)
+    elif isinstance(obj, fields.FieldProxy):
+        return fields.field_repr(obj._real, env=obj._env)
     elif isinstance(obj, odoo.models.BaseModel):
         return record_repr(obj)
     elif isinstance(obj, addons.Addon):
@@ -273,6 +273,14 @@ def odoo_print(obj, **kwargs):
         print("\n\n".join(record_repr(record) for record in obj), **kwargs)
     else:
         print(odoo_repr(obj), **kwargs)
+
+
+def _has_computer(field):
+    # type: (Field) -> bool
+    return (
+        field.compute is not None
+        or type(getattr(field, "column", None)).__name__ == "function"
+    )
 
 
 def _fmt_properties(field):
@@ -290,7 +298,7 @@ def model_repr(obj):
         return repr(obj)
     obj = util.unwrap(obj)
 
-    fields = []
+    field_names = []
     delegated = []
     for field in sorted(obj._fields):
         if field in FIELD_BLACKLIST:
@@ -298,8 +306,8 @@ def model_repr(obj):
         if getattr(obj._fields[field], "related", False):
             delegated.append(obj._fields[field])
             continue
-        fields.append(field)
-    max_len = max(len(f) for f in fields) if fields else 0
+        field_names.append(field)
+    max_len = max(len(f) for f in field_names) if field_names else 0
     parts = []
 
     parts.append(color.header(obj._name))
@@ -312,7 +320,7 @@ def model_repr(obj):
                     color.model(model_name), color.field(field_name)
                 )
             )
-    for field in fields:
+    for field in field_names:
         f_obj = obj._fields[field]
         parts.append(
             color.blue.bold(_fmt_properties(f_obj))
@@ -389,14 +397,14 @@ def record_repr(obj):
     if obj.env.cr.closed:
         return "{}[{}] (closed cursor)".format(obj._name, _ids_repr(obj._ids))
 
-    fields = sorted(
+    field_names = sorted(
         field
         for field in obj._fields
         if field not in FIELD_BLACKLIST
         and field not in FIELD_VALUE_BLACKLIST
         and not obj._fields[field].related
     )
-    max_len = max(len(f) for f in fields) if fields else 0
+    max_len = max(len(f) for f in field_names) if field_names else 0
     parts = []
 
     parts.append(_record_header(obj))
@@ -414,7 +422,7 @@ def record_repr(obj):
     # The solution: do everything in a separate env where the ID cache is
     # empty.
     no_prefetch_obj = obj.with_context(odoo_repl=True)
-    for field in fields:
+    for field in field_names:
         parts.append(
             "{}: ".format(color.field(field))
             + (max_len - len(field)) * " "
@@ -441,286 +449,6 @@ def record_repr(obj):
         parts.append("")
         parts.extend(sources.format_sources(src))
 
-    return "\n".join(parts)
-
-
-def _has_computer(field):
-    # type: (Field) -> bool
-    return (
-        field.compute is not None
-        or type(getattr(field, "column", None)).__name__ == "function"
-    )
-
-
-def _find_computer(env, field):
-    # type: (odoo.api.Environment, Field) -> object
-    if field.compute is not None:
-        func = field.compute
-        func = getattr(func, "__func__", func)
-        if isinstance(func, Text):
-            func = getattr(env[field.model_name], func)
-        return func
-    elif type(getattr(field, "column", None)).__name__ == "function":
-        return field.column._fnct
-    return None
-
-
-def _decipher_lambda(func):
-    # type: (types.FunctionType) -> t.Text
-    """Try to retrieve a lambda's source code. Very nasty.
-
-    Signals failure by throwing random exceptions.
-    """
-    source = inspect.getsource(func)
-    source = re.sub(r" *\n *", " ", source).strip()
-    match = re.search("lambda [^:]*:.*", source)
-    if not match:
-        raise RuntimeError
-    source = match.group().strip()
-    try:
-        compile(source, "", "eval")
-    except SyntaxError as err:
-        assert err.offset is not None
-        source = source[: err.offset - 1].strip()
-        if re.search(r",[^)]*$", source):
-            source = source.rsplit(",")[0].strip()
-        compile(source, "", "eval")
-    return source
-
-
-def _find_field_default(model, field):
-    # type: (odoo.models.BaseModel, Field) -> object
-    # TODO: was the commented out code useful?
-    if hasattr(model, "_defaults"):  # and not callable(model._defaults[field.name]):
-        default = model._defaults[field.name]
-    elif field.default:
-        default = field.default
-    else:
-        return None
-
-    try:
-        # Very nasty but works some of the time
-        # Hopefully something better exists
-        if (
-            isinstance(default, types.FunctionType)
-            and default.__module__ in {"odoo.fields", "openerp.fields"}
-            and default.__name__ == "<lambda>"
-            and "value" in default.__code__.co_freevars
-            and default.__closure__
-        ):
-            default = default.__closure__[
-                default.__code__.co_freevars.index("value")
-            ].cell_contents
-    except Exception:
-        pass
-
-    return default
-
-
-def field_repr(env, field):
-    # type: (odoo.api.Environment, t.Union[FieldProxy, Field]) -> t.Text
-    """List detailed information about a field."""
-    # TODO:
-    # - .groups, .copy, .states, .inverse, .column[12]
-    field = util.unwrap(field)
-    model = env[field.model_name]
-    record = env["ir.model.fields"].search(
-        [("model", "=", field.model_name), ("name", "=", field.name)]
-    )
-    if len(record) > 1:
-        # This is rare, but apparently valid
-        # TODO: pick intelligently based on MRO
-        record = record[-1]
-    elif not record:
-        return color.missing("No ir.model.fields record found for field")
-    parts = []  # type: t.List[t.Text]
-    parts.append(
-        "{} {} on {}".format(
-            color.blue.bold(record.ttype),
-            color.field(record.name),
-            color.model(record.model),
-        )
-    )
-    if record.relation:
-        parts[-1] += " to {}".format(color.model(record.relation))
-
-    properties = [
-        attr
-        for attr in (
-            "readonly",
-            "required",
-            "store",
-            "index",
-            "auto_join",
-            "compute_sudo",
-            "related_sudo",
-            "translate",
-        )
-        if getattr(field, attr, False)
-    ]
-    if properties:
-        parts[-1] += " ({})".format(", ".join(properties))
-
-    parts.append(record.field_description)
-    if field.help:
-        if "\n" in field.help:
-            parts.append(field.help)
-        else:
-            parts[-1] += ": " + field.help
-
-    if field.related:
-        parts.append("Delegated to {}".format(color.field(".".join(field.related))))
-    elif getattr(field, "column", False) and type(field.column).__name__ == "related":
-        parts.append("Delegated to {}".format(color.field(".".join(field.column.arg))))
-    else:
-        func = _find_computer(env, field)
-        if getattr(func, "__name__", None) == "<lambda>":
-            assert isinstance(func, types.FunctionType)
-            try:
-                func = _decipher_lambda(func)
-            except Exception:
-                pass
-        if callable(func):
-            func = getattr(func, "__name__", func)
-        if func:
-            parts.append("Computed by {}".format(color.method(str(func))))
-
-    if getattr(model, "_constraint_methods", False):
-        for constrainer in model._constraint_methods:
-            if field.name in constrainer._constrains:
-                parts.append(
-                    "Constrained by {}".format(
-                        color.method(getattr(constrainer, "__name__", constrainer))
-                    )
-                )
-
-    if getattr(field, "inverse_fields", False):
-        parts.append(
-            "Inverted by {}".format(
-                ", ".join(color.field(inv.name) for inv in field.inverse_fields)
-            )
-        )
-
-    if field.default:
-        default = _find_field_default(model, field)
-
-        show_literal = False
-
-        if getattr(default, "__module__", None) in {"odoo.fields", "openerp.fields"}:
-            default = color.purple.bold("(Unknown)")
-            show_literal = True
-
-        try:
-            if getattr(default, "__name__", None) == "<lambda>":
-                assert isinstance(default, types.FunctionType)
-                source = _decipher_lambda(default)
-                default = color.purple.bold(source)
-                show_literal = True
-        except Exception:
-            pass
-
-        if callable(default):
-            default = color.method(getattr(default, "__name__", str(default)))
-            show_literal = True
-
-        if show_literal:
-            parts.append("Default value: {}".format(default))
-        else:
-            parts.append("Default value: {!r}".format(default))
-
-    if record.ttype == "selection":
-        sel = pprint.pformat(field.selection)  # type: t.Text
-        if isinstance(field.selection, list):
-            sel = color.highlight(sel)
-        parts.append(sel)
-
-    src = sources.find_source(field)
-    parts.extend(sources.format_sources(src))
-
-    if not src and record.modules:
-        parts.append(
-            "Defined in module {}".format(
-                ", ".join(color.module(module) for module in record.modules.split(", "))
-            )
-        )
-
-    return "\n".join(parts)
-
-
-def _find_decorators(method):
-    # type: (t.Any) -> t.Iterator[t.Text]
-    if hasattr(method, "_constrains"):
-        yield color.decorator("@api.constrains") + "({})".format(
-            ", ".join(map(repr, method._constrains))
-        )
-    if hasattr(method, "_depends"):
-        if callable(method._depends):
-            yield color.decorator("@api.depends") + "({!r})".format(method._depends)
-        else:
-            yield color.decorator("@api.depends") + "({})".format(
-                ", ".join(map(repr, method._depends))
-            )
-    if hasattr(method, "_onchange"):
-        yield color.decorator("@api.onchange") + "({})".format(
-            ", ".join(map(repr, method._onchange))
-        )
-    if getattr(method, "_api", False):
-        api = method._api
-        yield color.decorator("@api.{}".format(api.__name__ if callable(api) else api))
-    if not hasattr(method, "__self__"):
-        yield color.decorator("@staticmethod")
-    elif isinstance(method.__self__, type):
-        yield color.decorator("@classmethod")
-
-
-def _func_signature(func):
-    # type: (t.Callable[..., t.Any]) -> t.Text
-    if PY3:
-        return str(inspect.signature(func))
-    else:
-        return inspect.formatargspec(*inspect.getargspec(func))
-
-
-def method_repr(methodproxy):
-    # type: (MethodProxy) -> t.Text
-    src = sources.find_method_source(methodproxy)
-    model = methodproxy.model
-    name = methodproxy.name
-
-    method = methodproxy._real
-    decorators = list(_find_decorators(method))
-    method = util.unpack_function(method)
-
-    signature = _func_signature(method)
-    doc = inspect.getdoc(method)  # type: t.Optional[t.Text]
-    if not doc:
-        # inspect.getdoc() can't deal with Odoo's unorthodox inheritance
-        for cls in type(model).__mro__:
-            if name in vars(cls):
-                doc = inspect.getdoc(vars(cls)[name])
-            if doc:
-                break
-    if not PY3 and isinstance(doc, str):
-        # Sometimes people put unicode in non-unicode docstrings
-        # Probably in other places too, but here is where I found out the hard way
-        # unicode.join does not like non-ascii strs so this has to be early
-        try:
-            # everybody's source code is UTF-8-compatible, right?
-            doc = doc.decode("utf8")
-        except UnicodeDecodeError:
-            # Let's just hope for the best
-            pass
-    parts = []
-    parts.extend(decorators)
-    parts.append(
-        "{model}.{name}{signature}".format(
-            model=color.model(model._name), name=color.method(name), signature=signature
-        )
-    )
-    if doc:
-        parts.append(doc)
-    parts.append("")
-    parts.extend(sources.format_sources(src))
     return "\n".join(parts)
 
 
@@ -753,6 +481,7 @@ def edit(thing, index=-1, bg=None):
     argv.append(str(fname))
     if bg:
         # os.setpgrp avoids KeyboardInterrupt/SIGINT
+        # pylint: disable=subprocess-popen-preexec-fn
         subprocess.Popen(argv, preexec_fn=os.setpgrp)
     else:
         subprocess.Popen(argv).wait()
@@ -838,7 +567,7 @@ class EnvProxy(object):
 def _BaseModel_create_(
     self,  # type: odoo.models.BaseModel
     vals=None,  # type: t.Optional[t.Dict[str, t.Any]]
-    **fields  # type: t.Any
+    **field_vals  # type: t.Any
 ):
     # type: (...) -> odoo.models.BaseModel
     """Create a new record, optionally with keyword arguments.
@@ -850,8 +579,8 @@ def _BaseModel_create_(
     If you make a typo in a field name you get a proper error.
     """
     if vals:
-        fields.update(vals)
-    for key, value in fields.items():
+        field_vals.update(vals)
+    for key, value in field_vals.items():
         if key not in self._fields:
             raise TypeError("Field '{}' does not exist".format(key))
         if _is_record(value) or (
@@ -860,17 +589,17 @@ def _BaseModel_create_(
             # TODO: typecheck model
             field_type = self._fields[key].type
             if field_type.endswith("2many"):
-                fields[key] = [(6, 0, value.ids)]
+                field_vals[key] = [(6, 0, value.ids)]
             elif field_type.endswith("2one"):
                 if len(value) > 1:
                     raise TypeError("Can't link multiple records for '{}'".format(key))
-                fields[key] = value.id
-    return self.create(fields)
+                field_vals[key] = value.id
+    return self.create(field_vals)
 
 
 def _parse_search_query(
     args,  # type: t.Tuple[object, ...]
-    fields,  # type: t.Mapping[str, object]
+    field_vals,  # type: t.Mapping[str, object]
 ):
     # type: (...) -> t.List[t.Tuple[str, str, object]]
     clauses = []
@@ -903,7 +632,7 @@ def _parse_search_query(
         raise ValueError(
             "Couldn't divide into leaves: {!r}".format(clauses + [tuple(curr)])
         )
-    clauses.extend((k, "=", getattr(v, "id", v)) for k, v in fields.items())
+    clauses.extend((k, "=", getattr(v, "id", v)) for k, v in field_vals.items())
 
     return clauses
 
@@ -911,7 +640,7 @@ def _parse_search_query(
 def _BaseModel_search_(
     self,  # type: t.Union[odoo.models.BaseModel, ModelProxy]
     *args,  # type: object
-    **fields  # type: t.Any
+    **field_vals  # type: t.Any
 ):
     # type: (...) -> odoo.models.BaseModel
     # if count=True, this returns an int, but that may not be worth annotating
@@ -925,12 +654,12 @@ def _BaseModel_search_(
     # - inspect fields
     # - handle 2many relations
     self = util.unwrap(self)
-    offset = fields.pop("offset", 0)  # type: int
-    limit = fields.pop("limit", None)  # type: t.Optional[int]
-    order = fields.pop("order", "id")  # type: t.Optional[t.Text]
-    count = fields.pop("count", False)  # type: bool
-    shuf = fields.pop("shuf", None)  # type: t.Optional[int]
-    if shuf and not (args or fields or offset or limit or count):
+    offset = field_vals.pop("offset", 0)  # type: int
+    limit = field_vals.pop("limit", None)  # type: t.Optional[int]
+    order = field_vals.pop("order", "id")  # type: t.Optional[t.Text]
+    count = field_vals.pop("count", False)  # type: bool
+    shuf = field_vals.pop("shuf", None)  # type: t.Optional[int]
+    if shuf and not (args or field_vals or offset or limit or count):
         # Doing a search seeds the cache with IDs, which tanks performance
         # Odoo will compute fields on many records at once even though you
         # won't use them
@@ -940,7 +669,7 @@ def _BaseModel_search_(
         all_ids = util.sql(self.env, query)
         shuf = min(shuf, len(all_ids))
         return self.browse(random.sample(all_ids, shuf))
-    clauses = _parse_search_query(args, fields)
+    clauses = _parse_search_query(args, field_vals)
     result = self.search(clauses, offset=offset, limit=limit, order=order, count=count)
     if shuf:
         shuf = min(shuf, len(result))
@@ -951,7 +680,7 @@ def _BaseModel_search_(
 def _BaseModel_filtered_(
     self,  # type: odoo.models.AnyModel
     func=None,  # type: t.Optional[t.Callable[[odoo.models.AnyModel], bool]]
-    **fields  # type: object
+    **field_vals  # type: object
 ):
     # type: (...) -> odoo.models.AnyModel
     """Filter based on field values in addition to the usual .filtered() features.
@@ -962,10 +691,10 @@ def _BaseModel_filtered_(
     this = self
     if func:
         this = this.filtered(func)
-    if fields:
+    if field_vals:
         this = this.filtered(
             lambda record: all(
-                getattr(record, field) == value for field, value in fields.items()
+                getattr(record, field) == value for field, value in field_vals.items()
             )
         )
     return this
@@ -1001,10 +730,10 @@ class ModelProxy(object):
         if self._real is None:
             raise AttributeError("Model '{}' does not exist".format(new))
         if attr in self._real._fields:
-            return FieldProxy(self._env, self._real._fields[attr])
+            return fields.FieldProxy(self._env, self._real._fields[attr])
         thing = getattr(self._real, attr)  # type: object
         if callable(thing) and hasattr(type(self._real), attr):
-            thing = MethodProxy(thing, self._real, attr)
+            thing = methods.MethodProxy(thing, self._real, attr)
         return thing
 
     def __dir__(self):
@@ -1042,10 +771,10 @@ class ModelProxy(object):
         return sorted(listing)
 
     def __iter__(self):
-        # type: () -> t.Iterator[FieldProxy]
+        # type: () -> t.Iterator[fields.FieldProxy]
         assert self._real is not None
         for field in sorted(self._real._fields.values(), key=lambda f: f.name):
-            yield FieldProxy(self._env, field)
+            yield fields.FieldProxy(self._env, field)
 
     def __len__(self):
         # type: () -> int
@@ -1088,10 +817,10 @@ class ModelProxy(object):
             return self._real
         if isinstance(ind, Text):
             if ind in self._real._fields:
-                return FieldProxy(self._env, self._real._fields[ind])
+                return fields.FieldProxy(self._env, self._real._fields[ind])
             thing = getattr(self._real, ind)
             if callable(thing):
-                return MethodProxy(thing, self._real, ind)
+                return methods.MethodProxy(thing, self._real, ind)
             return thing
         if isinstance(ind, abc.Iterable):
             assert not isinstance(ind, Text)
@@ -1248,7 +977,8 @@ class ModelProxy(object):
                 print(color.module(util.module(cls)))
                 for name, meth in meths:
                     print(
-                        color.method(name) + _func_signature(util.unpack_function(meth))
+                        color.method(name)
+                        + methods._func_signature(util.unpack_function(meth))
                     )
 
     _ = _BaseModel_search_
@@ -1275,170 +1005,6 @@ def _to_user(
     if getattr(candidate, "_name", None) != "res.users":
         raise ValueError("{!r} is not a user".format(candidate))
     return candidate  # type: ignore
-
-
-class MethodProxy(object):
-    def __init__(self, method, model, name):
-        # type: (t.Callable[..., t.Any], odoo.models.BaseModel, t.Text) -> None
-        self._real = method
-        self.model = model
-        self.name = str(name)
-
-    def __call__(self, *args, **kwargs):
-        # type: (t.Any, t.Any) -> t.Any
-        return self._real(*args, **kwargs)
-
-    def __getattr__(self, attr):
-        # type: (t.Text) -> t.Any
-        if attr.startswith("__"):
-            raise AttributeError
-        return getattr(self._real, attr)
-
-    def __dir__(self):
-        # type: () -> t.List[str]
-        if PY3:
-            listing = set(super().__dir__())
-        else:
-            listing = {"edit_", "source_", "grep_"}
-        listing.update(dir(self._real))
-        return sorted(listing)
-
-    def __repr__(self):
-        # type: () -> str
-        return "{}({!r}, {!r}, {!r})".format(
-            self.__class__.__name__, self._real, self.model, self.name
-        )
-
-    def _repr_pretty_(self, printer, _cycle):
-        # type: (t.Any, t.Any) -> None
-        if printer.indentation == 0:
-            printer.text(method_repr(self))
-        else:
-            printer.text(repr(self))
-
-    edit_ = edit
-
-    def source_(self, location=None):
-        # type: (t.Optional[t.Text]) -> None
-        for cls in type(self.model).__mro__[1:]:
-            module = util.module(cls)
-            if location is not None and location != module:
-                continue
-            if self.name in vars(cls):
-                func = util.unpack_function(vars(cls)[self.name])
-                fname = inspect.getsourcefile(func) or "???"
-                lines, lnum = inspect.getsourcelines(func)
-                print(sources.format_source(sources.Source(module, fname, lnum)))
-                print(color.highlight("".join(lines)))
-
-    def grep_(self, *args, **kwargs):
-        # type: (object, object) -> None
-        """grep through all of the method's definitions, ignoring other file content.
-
-        See ModelProxy.grep_ for options.
-
-        The implementation is hacky. If you get weird results it's probably not
-        your fault.
-        """
-        argv = grep.build_grep_argv(args, kwargs)
-        first = True
-        for cls in type(self.model).__mro__[1:]:
-            if self.name in vars(cls):
-                func = util.unpack_function(vars(cls)[self.name])
-                try:
-                    grep.partial_grep(argv, func)
-                except grep.BadCommandline as err:
-                    print(err, file=sys.stderr)
-                    return
-                except grep.NoResults:
-                    continue
-                else:
-                    if not first:
-                        print()
-                    else:
-                        first = False
-
-
-class FieldProxy(object):
-    def __init__(self, env, field):
-        # type: (odoo.api.Environment, Field) -> None
-        self._env = env
-        self._real = field
-
-    def __getattr__(self, attr):
-        # type: (str) -> object
-        if attr.startswith("__"):
-            raise AttributeError
-        return getattr(self._real, attr)
-
-    def __dir__(self):
-        # type: () -> t.List[str]
-        if PY3:
-            listing = set(super().__dir__())
-        else:
-            listing = {"source_"}
-        listing.update(dir(self._real))
-        return sorted(listing)
-
-    def __repr__(self):
-        # type: () -> str
-        return repr(self._real)
-
-    def _repr_pretty_(self, printer, cycle):
-        # type: (t.Any, t.Any) -> None
-        if printer.indentation == 0 and hasattr(self._real, "model_name"):
-            printer.text(field_repr(self._env, self._real))
-        elif not hasattr(self, "model_name"):
-            printer.text("<Undisplayable field>")  # Work around bug
-        else:
-            printer.text(repr(self._real))
-
-    def source_(self, location=None):
-        # type: (t.Optional[t.Text]) -> None
-        for source in sources.find_source(self._real):
-            if location is not None and location != source.module:
-                continue
-            if source.lnum is None:
-                print(
-                    "This field is defined somewhere in {!r} "
-                    "but we don't know where".format(source.fname)
-                )
-                continue
-            print(sources.format_source(source))
-            print(
-                color.highlight(sources.extract_field_source(source.fname, source.lnum))
-            )
-
-    def _make_method_proxy_(self, func):
-        # type: (object) ->  object
-        if not callable(func):
-            return func
-        name = getattr(func, "__name__", False)
-        if not name:
-            return func
-        model = self._env[self._real.model_name]
-        if hasattr(model, name):
-            get = getattr(func, "__get__", False)
-            if get:
-                func = get(model)
-            if not callable(func):
-                return func
-            return MethodProxy(func, model, name)
-        return func
-
-    @property
-    def compute(self):
-        # type: () -> object
-        return self._make_method_proxy_(_find_computer(self._env, self._real))
-
-    @property
-    def default(self):
-        # type: () -> object
-        if not self._real.default:
-            raise AttributeError
-        return self._make_method_proxy_(
-            _find_field_default(self._env[self._real.model_name], self._real)
-        )
 
 
 def _is_record(obj):

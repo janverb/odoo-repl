@@ -21,6 +21,7 @@ from psycopg2.errors import SyntaxError as PGSyntaxError
 
 import odoo_repl
 
+from odoo_repl import odoo_repr
 from odoo_repl.imports import t, PY3
 
 
@@ -71,13 +72,13 @@ class TestOdooRepl(TestCase):
 
     def test_field_repr(self):
         self.assertRegex(
-            odoo_repl.field_repr(self.real_env, self.env["res.users"].login),
+            odoo_repr(self.env["res.users"].login),
             r"""^char login on res.users \(required, store(, related_sudo)?\)
 Login: Used to log into the system
 base: /[^\n]*/res_users.py:\d+$""",
         )
         self.assertRegex(
-            odoo_repl.field_repr(self.real_env, self.env["res.users"].company_id),
+            odoo_repr(self.env["res.users"].company_id),
             r"""^many2one company_id on res.users to res.company"""
             r""" \(required, store(, related_sudo)?\)
 Company: The [^\n]*\.(
@@ -86,7 +87,7 @@ Default value: (_get_company|lambda self: self\.env\.company\.id)
 base: /[^\n]*/res_users.py:\d+$""",
         )
         self.assertRegex(
-            odoo_repl.field_repr(self.real_env, self.env["res.currency"].date),
+            odoo_repr(self.env["res.currency"].date),
             r"""^date date on res.currency \(readonly(, related_sudo)?\)
 Date
 Computed by _?compute_date
@@ -172,14 +173,14 @@ Defines: [^\n]*, res.users, """,
     def test_create_write_info(self):
         demo = self.env["res.users"].search([("login", "=", "demo")])
         self.assertRegex(
-            odoo_repl.odoo_repr(demo),
+            odoo_repr(demo),
             r"""
 Created on 20..-..-.. ..:..:..
 """,
         )
         demo.partner_id.sudo(demo).write({"website": "blargh"})
         self.assertRegex(
-            odoo_repl.odoo_repr(demo.partner_id),
+            odoo_repr(demo.partner_id),
             r"""
 Created on 20..-..-.. ..:..:..
 Written on 20..-..-.. ..:..:.. by u.demo

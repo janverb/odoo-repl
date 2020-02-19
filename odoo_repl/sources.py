@@ -14,7 +14,7 @@ from odoo_repl.imports import odoo, t, MYPY, Field
 
 if MYPY:
     Sourceable = t.Union[
-        odoo.models.BaseModel, odoo.fields.Field, odoo_repl.MethodProxy
+        odoo.models.BaseModel, odoo.fields.Field, odoo_repl.methods.MethodProxy
     ]
 
 RE_FIELD = re.compile(
@@ -78,7 +78,7 @@ def find_source(thing):
             return find_record_source(thing)
     elif isinstance(thing, odoo.fields.Field):
         return find_field_source(thing)
-    elif isinstance(thing, odoo_repl.MethodProxy):
+    elif isinstance(thing, odoo_repl.methods.MethodProxy):
         return find_method_source(thing)
     else:
         raise TypeError(thing)
@@ -138,7 +138,7 @@ def find_field_source(field):
 
 
 def find_method_source(method):
-    # type: (odoo_repl.MethodProxy) -> t.List[Source]
+    # type: (odoo_repl.methods.MethodProxy) -> t.List[Source]
     res = []
     for cls in type(method.model).__mro__[1:]:
         if method.name in vars(cls):

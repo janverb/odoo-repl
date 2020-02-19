@@ -132,13 +132,13 @@ def unwrap(obj):
 
 @overload  # noqa: F811
 def unwrap(obj):
-    # type: (odoo_repl.FieldProxy) -> Field
+    # type: (odoo_repl.fields.FieldProxy) -> Field
     pass
 
 
 @overload  # noqa: F811
 def unwrap(obj):
-    # type: (odoo_repl.MethodProxy) -> t.Callable[..., t.Any]
+    # type: (odoo_repl.methods.MethodProxy) -> t.Callable[..., t.Any]
     pass
 
 
@@ -151,7 +151,12 @@ def unwrap(obj):
 def unwrap(obj):  # noqa: F811
     # type: (object) -> object
     if isinstance(
-        obj, (odoo_repl.ModelProxy, odoo_repl.MethodProxy, odoo_repl.FieldProxy)
+        obj,
+        (
+            odoo_repl.ModelProxy,
+            odoo_repl.methods.MethodProxy,
+            odoo_repl.fields.FieldProxy,
+        ),
     ):
         obj = obj._real
     return obj
