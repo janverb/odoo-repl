@@ -7,6 +7,7 @@ from datetime import datetime, date
 
 import odoo_repl
 
+from odoo_repl import shorthand
 from odoo_repl import util
 from odoo_repl.imports import odoo, t, TextLike, MYPY, Field
 
@@ -80,7 +81,7 @@ def color_field(field_obj):
 def render_user(obj):
     # type: (odoo.models.ResUsers) -> t.Text
     return ", ".join(
-        record(odoo_repl.UserBrowser._repr_for_value(user.login))
+        record(shorthand.UserBrowser._repr_for_value(user.login))
         if user.login and user.active
         else record("res.users[{}]".format(user.id))
         for user in obj
@@ -102,7 +103,7 @@ def _render_record(obj):
             if MYPY:
                 assert isinstance(obj, odoo.models.HrEmployee)
             return ", ".join(
-                record(odoo_repl.EmployeeBrowser._repr_for_value(em.user_id.login))
+                record(shorthand.EmployeeBrowser._repr_for_value(em.user_id.login))
                 if (
                     em.active
                     and em.user_id

@@ -30,8 +30,8 @@ class TestOdooRepl(TestCase):
     def setUp(self):
         self.real_env, self.ns = odoo_repl.create_namespace(self.db)
         self.env = self.ns["env"]  # type: odoo_repl.EnvProxy
-        self.ref = self.ns["ref"]  # type: odoo_repl.DataBrowser
-        self.u = self.ns["u"]  # type: odoo_repl.UserBrowser
+        self.ref = self.ns["ref"]  # type: odoo_repl.shorthand.DataBrowser
+        self.u = self.ns["u"]  # type: odoo_repl.shorthand.UserBrowser
         self.sql = self.ns["sql"]
         self.addons = self.ns["addons"]  # type: odoo_repl.addons.AddonBrowser
         odoo_repl.color.enabled = False

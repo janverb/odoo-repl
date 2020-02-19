@@ -5,10 +5,12 @@ from __future__ import unicode_literals
 import collections
 import contextlib
 import itertools
+import keyword
+import string
 
 import odoo_repl
 
-from odoo_repl.imports import t, overload, odoo, MYPY, Field
+from odoo_repl.imports import t, overload, odoo, MYPY, Field, PY3
 
 
 # Globally accessible environment. Use sparingly.
@@ -35,7 +37,24 @@ class XmlId(_XmlId):
 
     def to_ref(self):
         # type: () -> t.Text
+        if not (is_name(self.module) and is_name(self.name)):
+            return "ref({!r})".format(str(self))
         return "ref.{}.{}".format(self.module, self.name)
+
+
+IDENT_CHARS = set(string.ascii_letters + string.digits + "_")
+
+
+def is_name(ident):
+    # type: (t.Text) -> bool
+    if not ident:
+        return False
+    if keyword.iskeyword(ident):
+        return False
+    if PY3:
+        return ident.isidentifier()
+    else:
+        return set(ident) <= IDENT_CHARS and not ident[0].isdigit()
 
 
 def xml_ids(obj):

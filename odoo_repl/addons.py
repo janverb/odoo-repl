@@ -7,6 +7,7 @@ import odoo_repl
 
 from odoo_repl import color
 from odoo_repl import grep
+from odoo_repl import shorthand
 from odoo_repl import util
 from odoo_repl.imports import odoo, t, PY3
 
@@ -92,8 +93,8 @@ class Addon(object):
 
     @property
     def ref(self):
-        # type: () -> odoo_repl.DataModuleBrowser
-        return odoo_repl.DataModuleBrowser(self._env, self._module)
+        # type: () -> shorthand.DataModuleBrowser
+        return shorthand.DataModuleBrowser(self._env, self._module)
 
     def grep_(self, *args, **kwargs):
         # type: (object, object) -> None
