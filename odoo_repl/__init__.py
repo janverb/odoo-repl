@@ -830,10 +830,6 @@ class EnvProxy(object):
         for mod in self._env.registry:
             yield self[mod]
 
-    def __eq__(self, other):
-        # type: (object) -> bool
-        return isinstance(other, self.__class__) and self._env == other._env
-
     def _ipython_key_completions_(self):
         # type: () -> t.List[t.Text]
         return list(self._env.registry)

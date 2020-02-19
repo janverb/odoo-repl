@@ -50,10 +50,6 @@ class RecordBrowser(object):
             self._env, self._listing
         )
 
-    def __eq__(self, other):
-        # type: (object) -> bool
-        return isinstance(other, self.__class__) and self._env == other._env
-
     __getitem__ = __getattr__
     _ipython_key_completions_ = __dir__
 
@@ -140,10 +136,6 @@ class DataBrowser(object):
     def __call__(self, query):
         # type: (t.Text) -> odoo.models.BaseModel
         return self._env.ref(query)
-
-    def __eq__(self, other):
-        # type: (object) -> bool
-        return isinstance(other, self.__class__) and self._env == other._env
 
 
 class DataModuleBrowser(object):
