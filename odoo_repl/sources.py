@@ -203,10 +203,12 @@ def populate_xml_records(modules):
         return
 
     for module, demo in modules:
-        manifest = odoo.modules.module.load_information_from_description_file(module)
-        path = odoo.modules.module.get_module_path(module)
+        path = odoo.modules.module.get_module_path(module, display_warning=False)
         if not path:
             continue
+        manifest = odoo.modules.module.load_information_from_description_file(
+            module, mod_path=path
+        )
         data_files = list(manifest.get("data", ()))
         if demo:
             data_files.extend(manifest.get("demo", ()))

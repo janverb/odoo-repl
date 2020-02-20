@@ -130,18 +130,14 @@ def create_namespace(
         See help(odoo_repl.grep) for more information.
         """
         argv = grep.build_grep_argv(args, kwargs, recursive=True)
-        argv.extend(
-            filter(
-                None,
-                map(
-                    odoo.modules.module.get_module_path,
-                    util.sql(
-                        env,
-                        "SELECT name FROM ir_module_module WHERE state = 'installed'",
-                    ),
-                ),
-            )
+        mods = util.sql(
+            env, "SELECT name FROM ir_module_module WHERE state = 'installed'",
         )
+        paths = [
+            odoo.modules.module.get_module_path(mod, display_warning=False)
+            for mod in mods
+        ]
+        argv.extend(filter(None, paths))
         subprocess.Popen(argv).wait()
 
     def translate(text):
