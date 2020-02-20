@@ -405,7 +405,7 @@ def record_repr(obj):
     parts = []
 
     parts.append(_record_header(obj))
-    name = obj.display_name
+    name = obj.sudo().display_name
     default_name = "{},{}".format(obj._name, obj.id)
     if name and name != default_name:
         parts.append(color.display_name(name))
@@ -427,6 +427,7 @@ def record_repr(obj):
         )
 
     history_lines = []
+    obj = obj.sudo()
     if obj.create_date:
         create_msg = "Created on {}".format(color.format_date(obj.create_date))
         if obj.create_uid and obj.create_uid.id != 1:

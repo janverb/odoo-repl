@@ -187,6 +187,9 @@ Written on 20..-..-.. ..:..:.. by u.demo
 """,
         )
 
+    def test_record_repr_works_if_unprivileged(self):
+        odoo_repr(self.u.admin.sudo(self.ref.base.public_user.id))
+
     if not PY3:
         assertRegex = TestCase.assertRegexpMatches
         assertNotRegex = TestCase.assertNotRegexpMatches
