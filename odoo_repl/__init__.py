@@ -14,6 +14,7 @@
 # - test on Odoo 9 and 11
 # - write more tests
 # - better buildout integration
+# - look for more places where .sudo() should be used (see util.xml_ids())
 
 # hijack `odoo-bin shell`:
 # - write to its stdin and somehow hook it back up to a tty

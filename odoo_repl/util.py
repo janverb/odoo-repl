@@ -65,8 +65,10 @@ def xml_ids(obj):
     """
     return [
         XmlId(data_record.module, data_record.name)
-        for data_record in obj.env["ir.model.data"].search(
-            [("model", "=", obj._name), ("res_id", "=", obj.id)]
+        for data_record in (
+            obj.env["ir.model.data"]
+            .sudo()
+            .search([("model", "=", obj._name), ("res_id", "=", obj.id)])
         )
         if data_record.module != "__export__"
     ]
