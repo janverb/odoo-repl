@@ -112,9 +112,10 @@ def sql(env_, query, *args):
 
     The query is executed with a savepoint and rolled back if necessary.
     """
-    with savepoint(env_.cr):
-        env_.cr.execute(query, args)
-        result = env_.cr.fetchall()
+    cr = env_.cr._obj  # Avoid logging
+    with savepoint(cr):
+        cr.execute(query, args)
+        result = cr.fetchall()
     if result and len(result[0]) == 1:
         result = [row[0] for row in result]
     return result

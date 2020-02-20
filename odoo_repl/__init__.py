@@ -936,9 +936,10 @@ class ModelProxy(object):
         """Display basic PostgreSQL information about stored fields."""
         # TODO: make more informative
         assert self._real is not None
-        with util.savepoint(self._env.cr):
-            self._env.cr.execute("SELECT * FROM {} LIMIT 0;".format(self._real._table))
-            columns = self._env.cr.description
+        cr = self._env.cr._obj
+        with util.savepoint(cr):
+            cr.execute("SELECT * FROM {} LIMIT 0;".format(self._real._table))
+            columns = cr.description
         print(self._real._table)
         for name in sorted(c.name for c in columns):
             print("  {}".format(name))

@@ -113,9 +113,7 @@ class OPdb(pdb.Pdb, object):
         if self.env is None:
             raise TypeError("Uninitialized debugger")
         try:
-            with util.savepoint(self.env.cr):
-                self.env.cr.execute(arg)
-                pprint.pprint(self.env.cr.fetchall())
+            pprint.pprint(util.sql(self.env, arg))
         except Exception as err:
             # TODO: this might also be printed by the logging
             print(err)
