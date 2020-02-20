@@ -243,7 +243,7 @@ def _color_repr(owner, field_name):
     try:
         obj = getattr(owner, field_name)  # type: object
     except Exception as err:
-        return color.missing(repr(err))
+        return color.missing(type(err).__name__)
     field_type = owner._fields[field_name].type
     return color.color_value(obj, field_type)
 
