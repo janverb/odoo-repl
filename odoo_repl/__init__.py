@@ -426,6 +426,23 @@ def record_repr(obj):
             + _color_repr(no_prefetch_obj, field)
         )
 
+    history_lines = _get_create_write_history(obj.sudo())
+    if history_lines:
+        parts.append("")
+        parts.extend(history_lines)
+
+    src = sources.find_source(obj)
+    if src:
+        parts.append("")
+        parts.extend(sources.format_sources(src))
+
+    return "\n".join(parts)
+
+
+def _get_create_write_history(obj):
+    # type: (odoo.models.BaseModel) -> t.List[str]
+    if "create_date" not in obj._fields:
+        return []
     history_lines = []
     obj = obj.sudo()
     if obj.create_date:
@@ -438,16 +455,7 @@ def record_repr(obj):
         if obj.write_uid and obj.write_uid.id != 1:
             write_msg += " by {}".format(color.render_user(obj.write_uid))
         history_lines.append(write_msg)
-    if history_lines:
-        parts.append("")
-        parts.extend(history_lines)
-
-    src = sources.find_source(obj)
-    if src:
-        parts.append("")
-        parts.extend(sources.format_sources(src))
-
-    return "\n".join(parts)
+    return history_lines
 
 
 def edit(thing, index=-1, bg=None):
