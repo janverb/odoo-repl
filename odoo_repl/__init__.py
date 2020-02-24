@@ -102,6 +102,10 @@ def create_namespace(
 ):
     # type: (...) -> t.Tuple[odoo.api.Environment, t.Dict[str, t.Any]]
     global xml_thread
+    if not hasattr(odoo, "tools"):
+        raise RuntimeError(
+            "Odoo is not imported. You should run this from an Odoo shell."
+        )
     if db is None or isinstance(db, Text):
         db_name = db or odoo.tools.config["db_name"]
         if not db_name:
