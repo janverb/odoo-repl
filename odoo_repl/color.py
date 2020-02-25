@@ -185,7 +185,7 @@ def highlight(src, syntax="python"):
             lexer = RstLexer()
         else:
             raise ValueError("Unknown syntax {!r}".format(syntax))
-        return pyg_highlight(src, lexer, TerminalFormatter())  # type: ignore
+        return pyg_highlight(src, lexer, TerminalFormatter()).strip()  # type: ignore
 
 
 def format_date(date_obj):
