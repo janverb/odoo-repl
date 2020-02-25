@@ -93,6 +93,14 @@ Date
 Computed by _?compute_date
 base: /[^\n]*/res_currency.py:\d+$""",
         )
+        self.assertRegex(
+            odoo_repr(self.env["res.partner"].type),
+            r"""^selection type on res.partner \(store(, related_sudo)?\)
+Address Type: .*
+Default value: 'contact'
+\[(\('\w+', '[\w\s]+'\)[,\s]*)+\]
+base: /[^\n]*/res_partner.py:\d+$""",
+        )
 
     def test_sql(self):
         self.assertEqual(

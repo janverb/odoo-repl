@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import (
     Any,
+    Callable,
     List,
     Optional,
     Sequence,
@@ -36,7 +37,6 @@ class Field(Generic[T, Required]):
     help: Optional[Text]
     related: Optional[Sequence[Text]]
     inverse_fields: Sequence[Field[Any, Any]]  # Only in older versions
-    selection: List[Tuple[Text, Text]]  # Only on selection fields
     def __init__(self, *, required: bool = ...) -> None: ...
     @overload
     def __get__(self: AnyField, record: None, owner: Type[BaseModel]) -> AnyField: ...
@@ -63,3 +63,7 @@ class Boolean(Field[bool, Required]):
 
 class Datetime(Field[Union[datetime, Text], Required]):
     pass
+
+class Selection(Field[Text, Required]):
+    # Note: this can be integer instead of text
+    selection: Union[List[Tuple[Text, Text]], Text, Callable[..., Any]]

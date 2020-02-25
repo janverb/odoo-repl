@@ -9,7 +9,7 @@ from odoo_repl import color
 from odoo_repl import methods
 from odoo_repl import sources
 from odoo_repl import util
-from odoo_repl.imports import t, odoo, Field, PY3, Text
+from odoo_repl.imports import t, odoo, Field, PY3, Text, MYPY
 
 
 class FieldProxy(object):
@@ -208,9 +208,15 @@ def field_repr(field, env=None):
             parts.append("Default value: {!r}".format(default))
 
     if record.ttype == "selection":
-        sel = pprint.pformat(field.selection)  # type: t.Text
-        if isinstance(field.selection, list):
-            sel = color.highlight(sel)
+        if MYPY:
+            assert isinstance(field, odoo.fields.Selection)
+        if isinstance(field.selection, Text):
+            sel = u"Values computed by {}".format(color.method(field.selection))
+        elif callable(field.selection):
+            sel = u"Values computed by {}".format(color.method(repr(field.selection)))
+        else:
+            # Most likely a list of 2-tuples
+            sel = color.highlight(pprint.pformat(field.selection))
         parts.append(sel)
 
     src = sources.find_source(field)
