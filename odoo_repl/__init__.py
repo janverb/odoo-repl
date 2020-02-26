@@ -391,12 +391,12 @@ def record_repr(obj):
     obj = util.unwrap(obj)
 
     if not obj:
-        return "{}[]".format(obj._name)
+        return u"{}[]".format(obj._name)
     elif len(obj) > 1:
-        return "{}[{}]".format(obj._name, _ids_repr(obj._ids))
+        return u"{}[{}]".format(obj._name, _ids_repr(obj._ids))
 
     if obj.env.cr.closed:
-        return "{}[{}] (closed cursor)".format(obj._name, _ids_repr(obj._ids))
+        return u"{}[{}] (closed cursor)".format(obj._name, _ids_repr(obj._ids))
 
     field_names = sorted(
         field
