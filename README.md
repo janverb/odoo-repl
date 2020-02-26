@@ -110,7 +110,7 @@ http dispatch if its type field is set to "binary" and its url
 field is set as the request's url. Only the groups returned by
 this method are allowed to create and write on such records.
 
-base: /home/jan/therp/buildout12/parts/odoo/odoo/addons/base/models/ir_attachment.py:279
+base: [...]/odoo/odoo/addons/base/models/ir_attachment.py:279
 ```
 
 Fields in the model overview can be marked with `r`, `s`, `d`, and `c`, which stand for `required`, `store`, `default` and `computed`, respectively.
