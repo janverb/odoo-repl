@@ -48,6 +48,7 @@ class FieldProxy(object):
 
     def source_(self, location=None):
         # type: (t.Optional[t.Text]) -> None
+        first = True
         for source in sources.find_source(self._real):
             if location is not None and location != source.module:
                 continue
@@ -57,6 +58,10 @@ class FieldProxy(object):
                     "but we don't know where".format(source.fname)
                 )
                 continue
+            if not first:
+                print()
+            else:
+                first = False
             print(sources.format_source(source))
             print(
                 color.highlight(sources.extract_field_source(source.fname, source.lnum))

@@ -58,6 +58,7 @@ class MethodProxy(object):
 
     def source_(self, location=None):
         # type: (t.Optional[t.Text]) -> None
+        first = True
         for cls in type(self.model).__mro__[1:]:
             module = util.module(cls)
             if location is not None and location != module:
@@ -66,6 +67,10 @@ class MethodProxy(object):
                 func = util.unpack_function(vars(cls)[self.name])
                 fname = inspect.getsourcefile(func) or "???"
                 lines, lnum = inspect.getsourcelines(func)
+                if not first:
+                    print()
+                else:
+                    first = False
                 print(sources.format_source(sources.Source(module, fname, lnum)))
                 print(color.highlight("".join(lines)))
 

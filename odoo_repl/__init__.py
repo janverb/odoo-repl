@@ -886,12 +886,17 @@ class ModelProxy(object):
     def source_(self, location=None):
         # type: (t.Optional[t.Text]) -> None
         assert self._real is not None
+        first = True
         for cls in type(self._real).__bases__:
             name = getattr(cls, "_name", None)
             if location is not None and util.module(cls) != location:
                 continue
             if location is None and name != self._real._name:
                 continue
+            if not first:
+                print()
+            else:
+                first = False
             print(sources.format_source(sources.Source.from_cls(cls)))
             print(color.highlight(inspect.getsource(cls)))
 
