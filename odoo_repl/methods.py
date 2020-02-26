@@ -102,6 +102,27 @@ class MethodProxy(object):
                         first = False
 
 
+def _get_method_docs(model, name):
+    # type: (odoo.models.BaseModel, str) -> t.List[t.Tuple[str, t.Text]]
+    result = []
+    for cls in type(model).__mro__:
+        if name in vars(cls):
+            doc = getattr(vars(cls)[name], "__doc__", None)
+            if doc:
+                doc = inspect.cleandoc(doc)
+                if not PY3 and isinstance(doc, str):
+                    # Sometimes people put unicode in non-unicode docstrings
+                    # unicode.join does not like non-ascii strs so this has to be early
+                    try:
+                        # everybody's source code is UTF-8-compatible, right?
+                        doc = doc.decode("utf8")
+                    except UnicodeDecodeError:
+                        # Let's just hope for the best
+                        pass
+                result.append((util.module(cls), doc))
+    return result
+
+
 def method_repr(methodproxy):
     # type: (MethodProxy) -> t.Text
     src = sources.find_method_source(methodproxy)
@@ -113,24 +134,7 @@ def method_repr(methodproxy):
     method = util.unpack_function(method)
 
     signature = _func_signature(method)
-    doc = inspect.getdoc(method)  # type: t.Optional[t.Text]
-    if not doc:
-        # inspect.getdoc() can't deal with Odoo's unorthodox inheritance
-        for cls in type(model).__mro__:
-            if name in vars(cls):
-                doc = inspect.getdoc(vars(cls)[name])
-            if doc:
-                break
-    if not PY3 and isinstance(doc, str):
-        # Sometimes people put unicode in non-unicode docstrings
-        # Probably in other places too, but here is where I found out the hard way
-        # unicode.join does not like non-ascii strs so this has to be early
-        try:
-            # everybody's source code is UTF-8-compatible, right?
-            doc = doc.decode("utf8")
-        except UnicodeDecodeError:
-            # Let's just hope for the best
-            pass
+    docs = _get_method_docs(model, name)
     parts = []
     parts.extend(decorators)
     parts.append(
@@ -138,8 +142,15 @@ def method_repr(methodproxy):
             model=color.model(model._name), name=color.method(name), signature=signature
         )
     )
-    if doc:
-        parts.append(doc)
+    for module, doc in docs:
+        doc = color.highlight(doc, "rst")
+        if len(docs) == 1:
+            parts.append(doc)
+        elif "\n" in doc:
+            parts.append("{}:".format(color.module(module)))
+            parts.append(doc)
+        else:
+            parts.append("{}: {}".format(color.module(module), doc))
     parts.append("")
     parts.extend(sources.format_sources(src))
     return "\n".join(parts)

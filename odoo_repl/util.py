@@ -18,7 +18,7 @@ env = None  # type: odoo.api.Environment  # type: ignore
 
 
 def module(cls):
-    # type: (t.Type[odoo.models.BaseModel]) -> t.Text
+    # type: (t.Type[odoo.models.BaseModel]) -> str
     return getattr(cls, "_module", cls.__name__)  # type: ignore
 
 
