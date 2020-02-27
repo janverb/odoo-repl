@@ -420,9 +420,22 @@ def record_repr(obj):
 
     # Odoo precomputes a field for up to 200 records at a time.
     # This can be a problem if we're only interested in one of them.
-    # The solution: do everything in a separate env where the ID cache is
-    # empty.
-    no_prefetch_obj = obj.with_context(odoo_repl=True)
+    # So we do our best to disable it.
+
+    # For Odoo 8, we do everything in a separate env where the ID cache is
+    # empty. We make a separate env by changing the context. This has the added
+    # advantage of informing models that they're running in odoo_repl, in case
+    # they care. In _color_repr we clear the cache in case it got filled.
+
+    # For Odoo 10-13, we slice the record. Odoo tries to be smart and narrows
+    # the prefetch cache if we slice while keeping it when iterating.
+
+    # I don't know what Odoo 9 does but I hope it's one of the above.
+
+    # TODO: When .print_()ing a recordset we do want prefetching.
+
+    no_prefetch_obj = obj.with_context(odoo_repl=True)[:]
+
     for field in field_names:
         parts.append(
             "{}: ".format(color.field(field))
