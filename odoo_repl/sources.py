@@ -4,6 +4,7 @@ import collections
 import inspect
 import linecache
 import os
+import platform
 import re
 
 import odoo_repl
@@ -87,6 +88,11 @@ def find_source(thing):
 def format_source(source):
     # type: (Source) -> t.Text
     module, fname, lnum = source
+    # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+    if os.environ.get("ODOO_REPL_CLICKABLE_FILENAMES"):
+        fname = "\x1b]8;;file://{hostname}{fname}\x1b\\{fname}\x1b]8;;\x1b\\".format(
+            fname=fname, hostname=platform.node()
+        )
     if lnum is not None:
         return "{}: {}:{}".format(color.module(module), fname, lnum)
     else:
