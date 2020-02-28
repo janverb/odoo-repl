@@ -8,7 +8,8 @@ The tests currently expect a database with only `base` installed, with demo
 data.
 
 A lot of tests are brittle. They should work with an aforementioned database on
-Odoo 8, 10, and 12, but maybe not with other versions or many addons installed.
+Odoo 8, 10, 12, and 13, but maybe not with other versions or many addons
+installed.
 
 So if the tests fail for a certain Odoo version that doesn't necessarily mean
 the package is actually broken. The tests definitely should be fixed in that
