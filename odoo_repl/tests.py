@@ -16,14 +16,13 @@ the package is actually broken. The tests definitely should be fixed in that
 case though.
 """
 
-import os
-
 from unittest import TestCase, defaultTestLoader, TextTestRunner, TestResult
 
 from psycopg2.errors import SyntaxError as PGSyntaxError
 
 import odoo_repl
 
+from odoo_repl import config
 from odoo_repl import odoo_repr
 from odoo_repl.imports import t, PY3
 
@@ -38,8 +37,8 @@ class TestOdooRepl(TestCase):
         self.u = self.ns["u"]  # type: odoo_repl.shorthand.UserBrowser
         self.sql = self.ns["sql"]
         self.addons = self.ns["addons"]  # type: odoo_repl.addons.AddonBrowser
-        os.environ["ODOO_REPL_CLICKABLE_FILENAMES"] = ""
-        odoo_repl.color.enabled = False
+        config.clickable_filenames = False
+        config.color = False
 
     def test_basic_record_access(self):
         demo = self.real_env["res.users"].search([("login", "=", "demo")])

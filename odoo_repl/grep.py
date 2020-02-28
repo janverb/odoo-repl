@@ -30,15 +30,15 @@ import subprocess
 import sys
 
 from odoo_repl import color
+from odoo_repl import config
 from odoo_repl.imports import t, PY3
 
 
 def find_grep(default="grep"):
     # type: (t.Text) -> t.List[t.Any]
     """Look for a grep-like program to use."""
-    user_conf = os.environ.get("ODOO_REPL_GREP")
-    if user_conf:
-        return shlex.split(user_conf)
+    if config.grep:
+        return shlex.split(config.grep)
     for prog in "rg", "ag", "ack":
         if which(prog):
             return [prog]
@@ -49,7 +49,7 @@ def find_grep(default="grep"):
 def build_grep_argv(args, kwargs, recursive=False):
     # type: (t.Iterable[object], t.Mapping[str, object], bool) -> t.List[t.Text]
     argv = find_grep()
-    if argv[0] == "grep" and color.enabled:
+    if argv[0] == "grep" and config.color:
         argv.append("--color=auto")
     for key, value in kwargs.items():
         flag = "-" + key if len(key) == 1 else "--" + key.replace("_", "-")

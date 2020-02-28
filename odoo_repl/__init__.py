@@ -46,6 +46,7 @@ import types
 from odoo_repl import access
 from odoo_repl import addons
 from odoo_repl import color
+from odoo_repl import config
 from odoo_repl import fields
 from odoo_repl import forensics
 from odoo_repl import grep
@@ -67,8 +68,6 @@ from odoo_repl.imports import (
 from odoo_repl.opdb import set_trace, post_mortem, pm
 
 __all__ = ("odoo_repr", "enable", "set_trace", "post_mortem", "pm", "forensics", "opdb")
-
-edit_bg = False
 
 
 FIELD_BLACKLIST = {
@@ -191,8 +190,6 @@ xml_thread = None  # type: t.Optional[threading.Thread]
 def enable(
     db=None,  # type: t.Union[None, t.Text, odoo.sql_db.Cursor, odoo.api.Environment]
     module=None,  # type: t.Union[None, t.Text, types.ModuleType]
-    with_color=True,  # type: bool
-    bg_editor=False,  # type: bool
 ):
     # type: (...) -> None
     """Enable all the bells and whistles.
@@ -201,12 +198,7 @@ def enable(
                name, or ``None`` to guess the database to use.
     :param module: Either a module, the name of a module, or ``None`` to
                    install into the module of the caller.
-    :param bool with_color: Enable colored output.
-    :param bool bg_editor: Don't wait for text editors invoked by ``.edit()``
-                           to finish.
     """
-    global edit_bg
-
     if module is None:
         target_ns = sys._getframe().f_back.f_globals
     elif isinstance(module, Text):
@@ -217,8 +209,6 @@ def enable(
     env_, to_install = create_namespace(db)
 
     atexit.register(env_.cr.close)
-
-    edit_bg = bg_editor
 
     sys.displayhook = displayhook
 
@@ -233,9 +223,6 @@ def enable(
             name not in target_ns or type(target_ns[name]) is type(obj)
         ):
             target_ns[name] = obj
-
-    if not with_color:
-        color.enabled = False
 
 
 def _color_repr(owner, field_name):
@@ -480,7 +467,7 @@ def edit(thing, index=-1, bg=None):
     """Open a model or field definition in an editor."""
     # TODO: editor kwarg and/or argparse flag
     if bg is None:
-        bg = edit_bg
+        bg = config.bg_editor
     src = sources.find_source(thing)
     if not src:
         raise RuntimeError("Can't find source file!")
@@ -497,8 +484,7 @@ def edit(thing, index=-1, bg=None):
             raise RuntimeError("Can't find match for module {!r}".format(index))
     else:
         raise TypeError(index)
-    # $EDITOR could be an empty string
-    argv = (os.environ.get("EDITOR") or "nano").split()
+    argv = list(config.editor)
     if lnum is not None:
         argv.append("+{}".format(lnum))
     argv.append(str(fname))

@@ -42,14 +42,6 @@ def main(argv=sys.argv[1:]):
         help="Extra flags to pass to the interpreter",
     )
     parser.add_argument(
-        "--no-color", action="store_true", help="Disable colored output"
-    )
-    parser.add_argument(
-        "--bg-editor",
-        action="store_true",
-        help="Allow editors to run in the background",
-    )
-    parser.add_argument(
         "--no-interactive",
         action="store_true",
         help="Immediately quit odoo-repl after starting",
@@ -115,14 +107,12 @@ import odoo_repl
 sys.path.pop()
 odoo_repl.parse_config(['-c', session.openerp_config_file] + {extra_args!r})
 session.open(db={database!r})
-odoo_repl.enable(session.env, __name__, with_color={color!r}, bg_editor={bg_editor!r})
+odoo_repl.enable(session.env, __name__)
 """.format(
         database=args.database,
         odoo_repl_path=os.path.dirname(
             os.path.dirname(odoo_repl.__file__)
         ),  # Might be fragile
-        color=not (args.no_color or os.environ.get("NO_COLOR")),
-        bg_editor=args.bg_editor,
         extra_args=args.extra_args,
     )
 

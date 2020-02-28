@@ -7,11 +7,10 @@ from datetime import datetime, date
 
 import odoo_repl
 
+from odoo_repl import config
 from odoo_repl import shorthand
 from odoo_repl import util
 from odoo_repl.imports import odoo, t, TextLike, MYPY, Field
-
-enabled = True
 
 
 class Color:
@@ -22,7 +21,7 @@ class Color:
 
     def __call__(self, text):
         # type: (t.Text) -> t.Text
-        if not enabled:
+        if not config.color:
             return text
         return "\x1b[{}m{}{}\x1b[m".format(self.prefix, text, self.affix)
 
@@ -168,7 +167,7 @@ def highlight(src, syntax="python"):
     if syntax == "xml":
         src = " " * 80 + src
     src = textwrap.dedent(src).strip()
-    if not enabled:
+    if not config.color:
         return src
     try:
         from pygments import highlight as pyg_highlight
