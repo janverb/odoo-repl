@@ -226,7 +226,10 @@ def populate_xml_records(modules):
             fname = os.path.join(path, fname)
             if not os.path.isfile(fname):
                 continue
-            tree = lxml.etree.parse(fname)
+            try:
+                tree = lxml.etree.parse(fname)
+            except Exception:  # Syntax error, for example
+                continue
             for tag in RECORD_TAGS:
                 for record in tree.iterfind("//" + tag):
                     if "id" not in record.attrib:
