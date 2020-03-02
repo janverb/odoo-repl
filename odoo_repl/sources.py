@@ -89,11 +89,12 @@ def find_source(thing):
 def format_source(source):
     # type: (Source) -> t.Text
     module, fname, lnum = source
-    # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
     if config.clickable_filenames:
-        fname = "\x1b]8;;file://{hostname}{fname}\x1b\\{fname}\x1b]8;;\x1b\\".format(
-            fname=fname, hostname=platform.node()
-        )
+        # TODO: is including the hostname desirable?
+        # GNOME doesn't seem to support remote file:// URIs anyway, and if we
+        # somehow use the wrong hostname it'll mess things up.
+        uri = "file://{hostname}{fname}".format(fname=fname, hostname=platform.node())
+        fname = color.linkify(fname, uri)
     if lnum is not None:
         return "{}: {}:{}".format(color.module(module), fname, lnum)
     else:

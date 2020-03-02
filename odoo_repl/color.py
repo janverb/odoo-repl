@@ -192,3 +192,14 @@ def format_date(date_obj):
     if isinstance(date_obj, datetime):
         date_obj = date_obj.strftime(odoo.fields.DATETIME_FORMAT)
     return blue.bold(date_obj)
+
+
+def linkify(text, uri):
+    # type: (t.Text, t.Text) -> t.Text
+    """Add terminal escape codes to turn text into a clickable link.
+
+    https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+
+    This lives in color.py because that's where the other terminal stuff is.
+    """
+    return "\x1b]8;;{uri}\x1b\\{text}\x1b]8;;\x1b\\".format(text=text, uri=uri)
