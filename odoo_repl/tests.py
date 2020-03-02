@@ -16,6 +16,10 @@ the package is actually broken. The tests definitely should be fixed in that
 case though.
 """
 
+import io
+import sys
+
+from contextlib import contextmanager
 from unittest import TestCase, defaultTestLoader, TextTestRunner, TestResult
 
 from psycopg2.errors import SyntaxError as PGSyntaxError
@@ -37,6 +41,7 @@ class TestOdooRepl(TestCase):
         self.u = self.ns["u"]  # type: odoo_repl.shorthand.UserBrowser
         self.sql = self.ns["sql"]
         self.addons = self.ns["addons"]  # type: odoo_repl.addons.AddonBrowser
+        self._captured_stream = None  # type: t.Optional[io.StringIO]
         config.clickable_filenames = False
         config.color = False
 
@@ -200,6 +205,59 @@ Written on 20..-..-.. ..:..:.. by u.demo
 
     def test_record_repr_works_if_unprivileged(self):
         odoo_repr(self.u.admin.sudo(self.ref.base.public_user.id))
+
+    def test_source_printing(self):
+        with self.capture_stdout():
+            self.ns["env"]["res.users"].login.source_()
+        self.assertCaptured(r"base: /.*:\d+")
+        self.assertCaptured(r" fields\.[Cc]har\(")
+
+        with self.capture_stdout():
+            self.ns["env"]["res.users"].browse.source_()
+        self.assertCaptured(r"BaseModel: /.*:\d+")
+        self.assertCaptured(r"\ndef browse\(")
+        self.assertCaptured(r"return self\._browse\(")
+
+        with self.capture_stdout():
+            self.ns["u"].demo.source_()
+        self.assertCaptured(r"base: /.*:\d+")
+        self.assertCaptured(r"<record id=.user_demo.")
+
+        with self.capture_stdout():
+            self.ns["env"]["res.users"].source_()
+        self.assertCaptured(r"base: /.*:\d+")
+        self.assertCaptured(r"class [\w_]+\(")
+        self.assertCaptured(r"def has_group\(")
+        self.assertNotCaptured(r"class BaseModel")
+
+    @contextmanager
+    def capture_stdout(self):
+        # type: () -> t.Iterator[io.StringIO]
+        target = io.StringIO()
+        if not PY3:
+
+            def _target_write(text):
+                if isinstance(text, str):
+                    text = text.decode()
+                return type(target).write(target, text)
+
+            target.write = _target_write  # type: ignore
+        sys.stdout = target  # type: ignore
+        self._captured_stream = target
+        try:
+            yield target
+        finally:
+            sys.stdout = sys.__stdout__
+
+    def assertCaptured(self, pattern):
+        # type: (str) -> None
+        assert self._captured_stream
+        self.assertRegex(self._captured_stream.getvalue(), pattern)
+
+    def assertNotCaptured(self, pattern):
+        # type: (str) -> None
+        assert self._captured_stream
+        self.assertNotRegex(self._captured_stream.getvalue(), pattern)
 
     if not PY3:
         assertRegex = TestCase.assertRegexpMatches
