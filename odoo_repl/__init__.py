@@ -48,10 +48,8 @@ from odoo_repl import addons
 from odoo_repl import color
 from odoo_repl import config
 from odoo_repl import fields
-from odoo_repl import forensics
 from odoo_repl import grep
 from odoo_repl import methods
-from odoo_repl import opdb
 from odoo_repl import shorthand
 from odoo_repl import sources
 from odoo_repl import util
@@ -65,9 +63,6 @@ from odoo_repl.imports import (
     Field,
     StringIO,
 )
-from odoo_repl.opdb import set_trace, post_mortem, pm
-
-__all__ = ("odoo_repr", "enable", "set_trace", "post_mortem", "pm", "forensics", "opdb")
 
 
 FIELD_BLACKLIST = {
@@ -1052,3 +1047,30 @@ try:
     odoo.fields.Field.edit_ = edit  # type: ignore
 except AttributeError:
     pass
+
+
+def set_trace():
+    # type: () -> None
+    from odoo_repl.opdb import get_debugger_cls
+
+    get_debugger_cls()().set_trace(sys._getframe().f_back)
+
+
+def post_mortem(traceback=None):
+    # type: (t.Optional[types.TracebackType]) -> None
+    from odoo_repl.opdb import get_debugger_cls
+
+    if traceback is None:
+        traceback = sys.exc_info()[2]
+        if traceback is None:
+            raise ValueError(
+                "A valid traceback must be passed if no exception is being handled"
+            )
+    debugger = get_debugger_cls()()
+    debugger.reset()
+    debugger.interaction(None, traceback)
+
+
+def pm():
+    # type: () -> None
+    post_mortem(sys.last_traceback)

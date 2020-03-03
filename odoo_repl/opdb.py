@@ -2,15 +2,13 @@ from __future__ import print_function
 
 import pdb
 import pprint
-import sys
 import types
 
 import odoo_repl
 
+from odoo_repl import config
 from odoo_repl import util
 from odoo_repl.imports import PY3, abc, odoo, t
-
-__all__ = ("OPdb", "set_trace", "post_mortem", "pm")
 
 
 class _ChainMap(abc.MutableMapping):  # type: ignore
@@ -62,12 +60,9 @@ class OPdb(pdb.Pdb, object):
         completekey="tab",  # type: str
         stdin=None,  # type: t.Optional[t.IO[str]]
         stdout=None,  # type: t.Optional[t.IO[str]]
-        skip=("odoo.api", "openerp.api"),  # type: t.Optional[t.Iterable[str]]
     ):
         # type: (...) -> None
-        super(OPdb, self).__init__(
-            completekey=completekey, stdin=stdin, stdout=stdout, skip=skip
-        )
+        super(OPdb, self).__init__(completekey=completekey, stdin=stdin, stdout=stdout)
         self.repl_namespace = {}  # type: t.Dict[str, t.Any]
         self._real_curframe_locals = None  # type: t.Optional[t.Mapping[str, t.Any]]
         self.env = None  # type: t.Optional[odoo.api.Environment]
@@ -128,24 +123,17 @@ class OPdb(pdb.Pdb, object):
         return super(OPdb, self).is_skipped_module(module_name)
 
 
-def set_trace():
-    # type: () -> None
-    OPdb().set_trace(sys._getframe().f_back)
+try:
+    from IPython import get_ipython
+
+    IPdb = get_ipython().debugger_cls
+    OIPdb = type("OIPdb", (OPdb, IPdb), {})  # type: t.Optional[t.Type[pdb.Pdb]]
+except (ImportError, AttributeError, TypeError):
+    OIPdb = None
 
 
-def post_mortem(traceback=None):
-    # type: (t.Optional[types.TracebackType]) -> None
-    if traceback is None:
-        traceback = sys.exc_info()[2]
-        if traceback is None:
-            raise ValueError(
-                "A valid traceback must be passed if no exception is being handled"
-            )
-    debugger = OPdb()
-    debugger.reset()
-    debugger.interaction(None, traceback)
-
-
-def pm():
-    # type: () -> None
-    post_mortem(sys.last_traceback)
+def get_debugger_cls():
+    # type: () -> t.Type[pdb.Pdb]
+    if config.force_pdb or OIPdb is None:
+        return OPdb
+    return OIPdb
