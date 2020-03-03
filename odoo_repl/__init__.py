@@ -457,7 +457,7 @@ def _get_create_write_history(obj):
     return history_lines
 
 
-def edit(thing, index=-1, bg=None):
+def edit(thing, index=0, bg=None):
     # type: (sources.Sourceable, t.Union[int, t.Text], t.Optional[bool]) -> None
     """Open a model or field definition in an editor."""
     # TODO: editor kwarg and/or argparse flag
