@@ -182,7 +182,7 @@ Defines: [^\n]*, res.users, """,
         self.assertIn("demo", res_users.mapped("login"))
         self.assertEqual(res_users.filtered_(login="demo"), self.u.demo)
         self.assertEqual(res_users.filtered(lambda u: u.login == "demo"), self.u.demo)
-        self.assertEqual(repr(res_users), "res.users[]")
+        self.assertEqual(repr(res_users), "<ModelProxy(res.users)>")
         self.assertEqual(res_users.mod_().model, "res.users")
         self.assertEqual(len(res_users.shuf_(2)), 2)
 

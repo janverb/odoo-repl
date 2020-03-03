@@ -807,8 +807,6 @@ class ModelProxy(object):
 
     def __repr__(self):
         # type: () -> str
-        if self._real is not None:
-            return "{}[]".format(self._path)
         return "<{}({})>".format(self.__class__.__name__, self._path)
 
     def _repr_pretty_(self, printer, _cycle):

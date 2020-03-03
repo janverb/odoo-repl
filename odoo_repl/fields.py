@@ -35,16 +35,16 @@ class FieldProxy(object):
 
     def __repr__(self):
         # type: () -> str
-        return repr(self._real)
+        if not hasattr(self._real, "model_name"):
+            return "<Undisplayable field>"  # Work around Odoo bug
+        return "<{}({!r})>".format(self.__class__.__name__, self._real)
 
     def _repr_pretty_(self, printer, _cycle):
         # type: (t.Any, t.Any) -> None
         if printer.indentation == 0 and hasattr(self._real, "model_name"):
             printer.text(field_repr(self._real, env=self._env))
-        elif not hasattr(self._real, "model_name"):
-            printer.text("<Undisplayable field>")  # Work around bug
         else:
-            printer.text(repr(self._real))
+            printer.text(repr(self))
 
     def source_(self, location=None):
         # type: (t.Optional[t.Text]) -> None
