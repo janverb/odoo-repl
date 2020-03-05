@@ -160,6 +160,13 @@ class IrTranslation(BaseModel):
     src = fields.Char()
     value = fields.Char()
 
+class IrUiView(BaseModel):
+    def default_view(self, model: Text, view_type: Text) -> int: ...
+    @overload  # < 10
+    def read_combined(self, view_id: int) -> _FieldView: ...
+    @overload  # >= 10
+    def read_combined(self) -> _FieldView: ...
+
 class ResGroups(BaseModel):
     name = fields.Char(required=True)
 

@@ -58,6 +58,7 @@ from odoo_repl.imports import (
     abc,
     odoo,
     t,
+    cast,
     Text,
     builtins,
     Field,
@@ -909,25 +910,37 @@ class ModelProxy(object):
 
     def view_(
         self,
+        view_type="form",  # type: t.Text
         user=None,  # type: t.Optional[t.Union[t.Text, int, odoo.models.ResUsers]]
-        **kwargs  # type: t.Any
+        view_id=None,  # type: t.Optional[t.Union[t.Text, odoo.models.IrUiView, int]]
     ):
         # type: (...) -> None
-        """Build up and print a view as a user.
-
-        Takes the same arguments as ir.model.fields_view_get, notably
-        view_id and view_type.
-        """
+        """Build up and print a view."""
         assert self._real is not None
-        context = kwargs.pop("context", None)
-        kwargs.setdefault("view_type", "form")
         model = self._real
         if user is not None:
             # TODO: handle viewing as group
             model = model.sudo(_to_user(self._env, user))
-        if context is not None:
-            model = model.with_context(context)
-        form = model.fields_view_get(**kwargs)["arch"]
+
+        View = model.env["ir.ui.view"]
+
+        if isinstance(view_id, Text):
+            view_id = cast("odoo.models.IrUiView", self._env.ref(view_id))
+        if isinstance(view_id, odoo.models.BaseModel):
+            if view_id._name != "ir.ui.view":
+                raise TypeError("view_id must be ir.ui.view")
+            view_id = view_id.id
+        if view_id is None:
+            view_id = View.default_view(model._name, view_type)
+
+        if not view_id:
+            raise RuntimeError("No {} view found for {}".format(view_type, model._name))
+
+        if odoo.release.version_info < (10, 0):
+            form = View.read_combined(view_id)["arch"]
+        else:
+            form = View.browse(view_id).read_combined()["arch"]
+
         try:
             import lxml.etree
         except ImportError:

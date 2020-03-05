@@ -24,9 +24,13 @@ else:
 
 try:
     import typing as t
-    from typing import overload
+    from typing import cast, overload
 except ImportError:
     t = None  # type: ignore
+
+    def cast(_typ, val):  # type: ignore
+        # type: (object, object) -> object
+        return val
 
     def overload(func):
         # type: (object) -> object
@@ -67,6 +71,7 @@ __all__ = (
     "abc",
     "odoo",
     "t",
+    "cast",
     "overload",
     "Text",
     "TextLike",
