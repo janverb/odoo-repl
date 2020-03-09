@@ -964,15 +964,27 @@ class ModelProxy(object):
     def sql_(self):
         # type: () -> None
         """Display basic PostgreSQL information about stored fields."""
-        # TODO: make more informative
         assert self._real is not None
         cr = self._env.cr._obj
         with util.savepoint(cr):
-            cr.execute("SELECT * FROM {} LIMIT 0;".format(self._real._table))
-            columns = cr.description
-        print(self._real._table)
-        for name in sorted(c.name for c in columns):
-            print("  {}".format(name))
+            cr.execute(
+                """
+                SELECT column_name, udt_name
+                FROM information_schema.columns
+                WHERE table_name = %s
+                ORDER BY column_name
+                """,
+                (self._real._table,),
+            )
+            info = dict(cr.fetchall())  # type: ignore
+        print(color.header(self._real._table))
+        max_len = max(len(name) for name in info)
+        for name, datatype in info.items():
+            print(
+                "{}: ".format(color.field(name))
+                + (max_len - len(name)) * " "
+                + datatype
+            )
 
     def grep_(self, *args, **kwargs):
         # type: (object, object) -> None

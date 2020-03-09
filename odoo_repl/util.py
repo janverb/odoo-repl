@@ -180,4 +180,4 @@ def stringify_text(text):
         except UnicodeDecodeError:
             # Hope for the best
             return text  # type: ignore
-    return text.encode("ascii", errors="replace")
+    return text.encode("ascii", errors="replace")  # type: ignore
