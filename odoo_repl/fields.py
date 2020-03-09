@@ -108,6 +108,10 @@ def field_repr(field, env=None):
         env = util.env
     field = util.unwrap(field)
     model = env[field.model_name]
+
+    parts = []  # type: t.List[t.Text]
+
+    # We mainly look this up just to warn when it doesn't exist
     record = env["ir.model.fields"].search(
         [("model", "=", field.model_name), ("name", "=", field.name)]
     )
@@ -116,17 +120,17 @@ def field_repr(field, env=None):
         # TODO: pick intelligently based on MRO
         record = record[-1]
     elif not record:
-        return color.missing("No ir.model.fields record found for field")
-    parts = []  # type: t.List[t.Text]
+        parts.append(color.missing("No ir.model.fields record found for field"))
+
     parts.append(
         "{} {} on {}".format(
-            color.blue.bold(record.ttype),
-            color.field(record.name),
-            color.model(record.model),
+            color.blue.bold(field.type),
+            color.field(field.name),
+            color.model(field.model_name),
         )
     )
-    if record.relation:
-        parts[-1] += " to {}".format(color.model(record.relation))
+    if field.comodel_name:
+        parts[-1] += " to {}".format(color.model(field.comodel_name))
 
     properties = [
         attr
@@ -145,7 +149,7 @@ def field_repr(field, env=None):
     if properties:
         parts[-1] += " ({})".format(", ".join(properties))
 
-    parts.append(record.field_description)
+    parts.append(field.string)
     if field.help:
         if "\n" in field.help:
             parts.append(field.help)
@@ -178,12 +182,25 @@ def field_repr(field, env=None):
                     )
                 )
 
-    if getattr(field, "inverse_fields", False):
-        parts.append(
-            "Inverted by {}".format(
-                ", ".join(color.field(inv.name) for inv in field.inverse_fields)
+    if field.relational:
+        inverse_names = set()  # type: t.Set[str]
+        inverse_names.update(inv.name for inv in getattr(field, "inverse_fields", ()))
+        inverse_name = getattr(field, "inverse_name", False)
+        if inverse_name:
+            inverse_names.add(inverse_name)
+        if field.comodel_name:
+            for other_field in env[field.comodel_name]._fields.values():
+                if (
+                    other_field.comodel_name == field.model_name
+                    and getattr(other_field, "inverse_name", False) == field.name
+                ):
+                    inverse_names.add(other_field.name)
+        if inverse_names:
+            parts.append(
+                "Inverts {}".format(
+                    ", ".join(color.field(name) for name in sorted(inverse_names))
+                )
             )
-        )
 
     if field.default:
         default = _find_field_default(model, field)
@@ -212,7 +229,7 @@ def field_repr(field, env=None):
         else:
             parts.append("Default value: {!r}".format(default))
 
-    if record.ttype == "selection":
+    if field.type == "selection":
         if MYPY:
             assert isinstance(field, odoo.fields.Selection)
         if isinstance(field.selection, Text):
@@ -227,7 +244,8 @@ def field_repr(field, env=None):
     src = sources.find_source(field)
     parts.extend(sources.format_sources(src))
 
-    if not src and record.modules:
+    if not src and record and record.modules:
+        # In newer Odoo versions we could check field._modules instead
         parts.append(
             "Defined in module {}".format(
                 ", ".join(color.module(module) for module in record.modules.split(", "))

@@ -25,10 +25,10 @@ Required = TypeVar("Required", bound=bool)
 AnyField = TypeVar("AnyField", bound=Field[object, bool])
 
 class Field(Generic[T, Required]):
-    name: Text
-    model_name: Text
-    comodel_name: Text
-    type: Text
+    name: str
+    model_name: str
+    comodel_name: str
+    type: str
     string: Text
     relational: bool
     compute: object
@@ -37,6 +37,7 @@ class Field(Generic[T, Required]):
     help: Optional[Text]
     related: Optional[Sequence[Text]]
     inverse_fields: Sequence[Field[Any, Any]]  # Only in older versions
+    inverse_name: str  # Not always there
     def __init__(self, *, required: bool = ...) -> None: ...
     @overload
     def __get__(self: AnyField, record: None, owner: Type[BaseModel]) -> AnyField: ...
