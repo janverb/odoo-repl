@@ -23,7 +23,7 @@ class Color:
         # type: (t.Text) -> t.Text
         if not config.color:
             return text
-        return "\x1b[{}m{}{}\x1b[m".format(self.prefix, text, self.affix)
+        return u"\x1b[{}m{}{}\x1b[m".format(self.prefix, text, self.affix)
 
     def bold(self, text):
         # type: (t.Text) -> t.Text

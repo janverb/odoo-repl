@@ -16,6 +16,8 @@ the package is actually broken. The tests definitely should be fixed in that
 case though.
 """
 
+from __future__ import print_function
+
 import io
 import sys
 
@@ -229,6 +231,63 @@ Written on 20..-..-.. ..:..:.. by u.demo
         self.assertCaptured(r"class [\w_]+\(")
         self.assertCaptured(r"def has_group\(")
         self.assertNotCaptured(r"class BaseModel")
+
+    def test_repr_all_models(self):
+        if not config.slow_tests:
+            self.skipTest("Slow tests disabled")
+        for model in self.ns["env"]:
+            self.assertIsInstance(model, odoo_repl.ModelProxy)
+            self.assertTrue(odoo_repl.odoo_repr(model))
+            for field in model:
+                self.assertIsInstance(field, odoo_repl.fields.FieldProxy)
+                self.assertTrue(odoo_repl.odoo_repr(field))
+            for attr_name in dir(model._real):
+                if attr_name.startswith("__") or attr_name in {"_cache"}:
+                    continue
+                thing = getattr(model, attr_name)
+                try:
+                    self.assertTrue(odoo_repl.odoo_repr(thing))
+                except Exception:
+                    print("\n\nFailed on {}.{}\n".format(model._name, attr_name))
+                    raise
+
+    def test_repr_all_addons(self):
+        if not config.slow_tests:
+            self.skipTest("Slow tests disabled")
+        for addon in self.ns["addons"]:
+            self.assertIsInstance(addon, odoo_repl.addons.Addon)
+            if addon.record.state == "uninstallable":
+                continue
+            try:
+                self.assertTrue(odoo_repl.odoo_repr(addon))
+            except Exception:
+                print("\n\nFailed on addons.{}\n".format(addon._module))
+                raise
+
+    def test_repr_all_data(self):
+        if not config.slow_tests:
+            self.skipTest("Slow tests disabled")
+        if odoo_repl.xml_thread:
+            odoo_repl.xml_thread.join()
+        for xml_id in odoo_repl.sources.xml_records.copy():
+            try:
+                record = self.real_env.ref(str(xml_id))
+            except ValueError:
+                if xml_id.module == "base" and xml_id.name.startswith("module_"):
+                    # These are not always present in Odoo 12+.
+                    # Maybe they're paid modules that are removed when the module
+                    # list is updated?
+                    continue
+                print(
+                    "\n\nHad trouble retrieving record {}. "
+                    "Maybe you need to run an update?\n".format(xml_id)
+                )
+                raise
+            try:
+                self.assertTrue(odoo_repl.odoo_repr(record))
+            except Exception:
+                print("\n\nFailed on record {}\n".format(xml_id))
+                raise
 
     @contextmanager
     def capture_stdout(self):

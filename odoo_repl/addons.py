@@ -9,7 +9,7 @@ from odoo_repl import color
 from odoo_repl import grep
 from odoo_repl import shorthand
 from odoo_repl import util
-from odoo_repl.imports import odoo, t, PY3
+from odoo_repl.imports import odoo, t, PY3, Text
 
 
 class AddonBrowser(object):
@@ -164,26 +164,23 @@ class Addon(object):
         else:
             state = color.yellow.bold(state.capitalize())
 
-        description = self.manifest.description  # type: str
-        if not PY3:
-            try:
-                description = description.decode("utf8").encode(
-                    "ascii", errors="replace"
-                )
-            except UnicodeDecodeError:
-                pass
+        description = util.stringify_text(self.manifest.description)
+        if isinstance(self.manifest.author, Text):
+            author = util.stringify_text(self.manifest.author)
+        else:
+            author = util.stringify_text(", ".join(self.manifest.author))
 
         direct, indirect = self._get_rdepends()
 
         parts = []
         parts.append(
             "{} {} by {}".format(
-                color.module(self._module), self.manifest.version, self.manifest.author,
+                color.module(self._module), self.manifest.version, author
             )
         )
         parts.append(self.path)
         parts.append(state)
-        parts.append(color.display_name(self.manifest.name))
+        parts.append(color.display_name(util.stringify_text(self.manifest.name)))
         parts.append(self.manifest.summary)
         if self.manifest.depends:
             parts.append(
@@ -207,7 +204,7 @@ class Addon(object):
             # (https://pypi.org/project/rst2ansi/)
             parts.append(color.highlight(description, "rst"))
 
-        return str("\n".join(parts))
+        return str("\n".join(map(util.stringify_text, parts)))
 
     def _repr_pretty_(self, printer, _cycle):
         # type: (t.Any, t.Any) -> None

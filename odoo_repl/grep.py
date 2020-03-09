@@ -31,6 +31,7 @@ import sys
 
 from odoo_repl import color
 from odoo_repl import config
+from odoo_repl import sources
 from odoo_repl.imports import t, PY3
 
 
@@ -102,7 +103,7 @@ def partial_grep(argv, thing):
                 raise BadCommandline(error)
             raise NoResults
 
-    print(color.purple(inspect.getsourcefile(thing) or "???"))
+    print(color.purple(sources.getsourcefile(thing)))
     proc = subprocess.Popen(argv, stdin=subprocess.PIPE, universal_newlines=True)
     assert proc.stdin is not None
     proc.stdin.write(proc_input)

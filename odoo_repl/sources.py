@@ -58,6 +58,14 @@ else:
     _Source = collections.namedtuple("Source", ("module", "fname", "lnum"))
 
 
+def getsourcefile(thing):
+    # type: (t.Any) -> t.Text
+    try:
+        return inspect.getsourcefile(thing) or "???"
+    except ValueError:
+        return "???"
+
+
 class Source(_Source):
     __slots__ = ()
 
@@ -66,7 +74,7 @@ class Source(_Source):
         # type: (t.Type[odoo.models.BaseModel]) -> Source
         return cls(
             util.module(src_cls),
-            inspect.getsourcefile(src_cls) or "???",
+            getsourcefile(src_cls),
             inspect.getsourcelines(src_cls)[1],
         )
 
@@ -132,7 +140,7 @@ def find_field_source(field):
         if field.name in getattr(cls, "_columns", ()) or field.name in vars(cls):
             if cls.__module__ in {"odoo.api", "openerp.api"}:
                 continue
-            fname = inspect.getsourcefile(cls) or "???"
+            fname = getsourcefile(cls)
             lines, lnum = inspect.getsourcelines(cls)
             for line in lines:
                 match = RE_FIELD.match(line)
@@ -154,7 +162,7 @@ def find_method_source(method):
             res.append(
                 Source(
                     util.module(cls),
-                    inspect.getsourcefile(func) or "???",
+                    getsourcefile(func),
                     inspect.getsourcelines(func)[1],
                 )
             )

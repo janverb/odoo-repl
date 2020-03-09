@@ -225,7 +225,7 @@ def field_repr(field, env=None):
             show_literal = True
 
         if show_literal:
-            parts.append("Default value: {}".format(default))
+            parts.append(u"Default value: {}".format(default))
         else:
             parts.append("Default value: {!r}".format(default))
 

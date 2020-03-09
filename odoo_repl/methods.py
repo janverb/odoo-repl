@@ -65,7 +65,7 @@ class MethodProxy(object):
                 continue
             if self.name in vars(cls):
                 func = util.unpack_function(vars(cls)[self.name])
-                fname = inspect.getsourcefile(func) or "???"
+                fname = sources.getsourcefile(func)
                 lines, lnum = inspect.getsourcelines(func)
                 if not first:
                     print()
@@ -125,7 +125,12 @@ def _get_method_docs(model, name):
 
 def method_repr(methodproxy):
     # type: (MethodProxy) -> t.Text
-    src = sources.find_method_source(methodproxy)
+    try:
+        signature = _func_signature(methodproxy._real)
+        src = sources.find_method_source(methodproxy)
+    except (TypeError, ValueError):
+        return repr(methodproxy._real)
+
     model = methodproxy.model
     name = methodproxy.name
 
@@ -133,7 +138,6 @@ def method_repr(methodproxy):
     decorators = list(_find_decorators(method))
     method = util.unpack_function(method)
 
-    signature = _func_signature(method)
     docs = _get_method_docs(model, name)
     parts = []
     parts.extend(decorators)

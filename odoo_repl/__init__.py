@@ -312,7 +312,7 @@ def model_repr(obj):
             # Like str.ljust, but not confused about colors
             + (max_len - len(field)) * " "
             + color.color_field(f_obj)
-            + " ({})".format(f_obj.string)
+            + u" ({})".format(f_obj.string)
         )
     if delegated:
         buckets = collections.defaultdict(
@@ -373,7 +373,9 @@ def record_repr(obj):
     """Display all of a record's fields."""
     obj = util.unwrap(obj)
 
-    if not obj:
+    if not hasattr(obj, "_ids"):
+        return repr(obj)
+    elif not obj:
         return u"{}[]".format(obj._name)
     elif len(obj) > 1:
         return u"{}[{}]".format(obj._name, _ids_repr(obj._ids))
@@ -737,7 +739,11 @@ class ModelProxy(object):
         if attr in self._real._fields:
             return fields.FieldProxy(self._env, self._real._fields[attr])
         thing = getattr(self._real, attr)  # type: object
-        if callable(thing) and hasattr(type(self._real), attr):
+        if (
+            callable(thing)
+            and not isinstance(thing, type)
+            and hasattr(type(self._real), attr)
+        ):
             thing = methods.MethodProxy(thing, self._real, attr)
         return thing
 

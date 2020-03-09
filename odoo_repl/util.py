@@ -163,3 +163,21 @@ def unwrap(obj):  # noqa: F811
     ):
         obj = obj._real
     return obj
+
+
+def stringify_text(text):
+    # type: (t.Any) -> str
+    """Try to make a string safe to return from __str__ or __repr__ in PY2.
+
+    The places where this is used should probably be refactored into something
+    more robust.
+    """
+    if PY3:
+        return text  # type: ignore
+    if isinstance(text, bytes):  # type: ignore
+        try:
+            text = text.decode("utf8")
+        except UnicodeDecodeError:
+            # Hope for the best
+            return text  # type: ignore
+    return text.encode("ascii", errors="replace")
