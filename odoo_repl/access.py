@@ -7,6 +7,7 @@ import pprint
 import odoo_repl
 
 from odoo_repl import color
+from odoo_repl import sources
 from odoo_repl.imports import odoo, t
 
 
@@ -71,6 +72,7 @@ def rule_repr(rule):
     if rule.domain_force not in {None, False, "[]", "[(1, '=', 1)]", '[(1, "=", 1)]'}:
         assert rule.domain_force
         parts.append(color.highlight(_domain_format(rule.env, rule.domain_force)))
+    parts.extend(sources.format_sources(sources.find_source(rule)))
     return "\n".join(parts)
 
 
