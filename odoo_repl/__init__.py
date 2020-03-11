@@ -196,7 +196,9 @@ def enable(
                    install into the module of the caller.
     """
     if module is None:
-        target_ns = sys._getframe().f_back.f_globals
+        frame = sys._getframe().f_back
+        assert frame is not None
+        target_ns = frame.f_globals
     elif isinstance(module, Text):
         target_ns = vars(importlib.import_module(module))
     else:
