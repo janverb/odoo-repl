@@ -37,6 +37,8 @@ class BaseModel:
     _description: Text
     _defaults: Dict[Text, object]
     _constraint_methods: List[_Constrainer]
+    # Actually a defaultdict but let's not rely on that
+    _onchange_methods: Dict[str, List[types.FunctionType]]
     _inherits: Dict[Text, Text]
     env: Environment
     # _ids is normally a tuple, but base_suspend_security turns it into a list

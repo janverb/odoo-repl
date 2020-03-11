@@ -116,6 +116,8 @@ def format_sources(sources):
 
 def find_model_source(model):
     # type: (odoo.models.BaseModel) -> t.List[Source]
+    # Note: This does not include inherited models with other names.
+    # We should probably show those in some way.
     return [
         Source.from_cls(cls)
         for cls in type(model).__bases__
@@ -136,7 +138,7 @@ def find_record_source(record):
 def find_field_source(field):
     # type: (Field) -> t.List[Source]
     res = []
-    for cls in type(util.env[field.model_name]).__bases__:
+    for cls in type(util.env[field.model_name]).__mro__:
         if field.name in getattr(cls, "_columns", ()) or field.name in vars(cls):
             if cls.__module__ in {"odoo.api", "openerp.api"}:
                 continue

@@ -84,16 +84,17 @@ class TestOdooRepl(TestCase):
         self.assertRegex(
             odoo_repr(self.env["res.users"].login),
             r"""^char login on res.users \(required, store(, related_sudo)?\)
-Login: Used to log into the system
+Login: Used to log into the system(
+On change: on_change_login)?
 base: /[^\n]*/res_users.py:\d+$""",
         )
         self.assertRegex(
             odoo_repr(self.env["res.users"].company_id),
             r"""^many2one company_id on res.users to res.company"""
             r""" \(required, store(, related_sudo)?\)
-Company: The [^\n]*\.(
+Company: The [^\n]*\.
+Default value: (_get_company|lambda self: self\.env\.company\.id)(
 Constrained by _check_company)?
-Default value: (_get_company|lambda self: self\.env\.company\.id)
 base: /[^\n]*/res_users.py:\d+$""",
         )
         self.assertRegex(
@@ -148,7 +149,9 @@ base: /[^\n]*/res_partner.py:\d+$""",
 Authentication via LDAP
 
 Depends: base(, base_setup)?(
-Dependents: users_ldap_[a-zA-Z0-9_, ]*)?
+Dependents: users_ldap_.*)?(
+Indirect dependents: .*)?(
+Defines: .*)?
 
 Adds support for authentication by LDAP server.
 ===============================================""",
@@ -288,6 +291,13 @@ Written on 20..-..-.. ..:..:.. by u.demo
             except Exception:
                 print("\n\nFailed on record {}\n".format(xml_id))
                 raise
+
+    def test_repr_all_rules(self):
+        if not config.slow_tests:
+            self.skipTest("Slow tests disabled")
+        with self.capture_stdout():
+            for model in self.ns["env"]:
+                model.rules_()
 
     @contextmanager
     def capture_stdout(self):

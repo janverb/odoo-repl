@@ -9,7 +9,7 @@ from odoo_repl import color
 from odoo_repl import methods
 from odoo_repl import sources
 from odoo_repl import util
-from odoo_repl.imports import t, odoo, Field, PY3, Text, MYPY
+from odoo_repl.imports import t, odoo, Field, PY3, Text
 
 
 class FieldProxy(object):
@@ -87,16 +87,37 @@ class FieldProxy(object):
     @property
     def compute(self):
         # type: () -> object
-        return self._make_method_proxy_(_find_computer(self._env, self._real))
+        return self._make_method_proxy_(_find_computer(self._real, self._env))
 
     @property
     def default(self):
         # type: () -> object
-        if not self._real.default:
-            raise AttributeError
         return self._make_method_proxy_(
-            _find_field_default(self._env[self._real.model_name], self._real)
+            _find_field_default(self._real, self._env[self._real.model_name])
         )
+
+
+def _name_func(function):
+    # type: (object) -> t.Text
+    return str(getattr(function, "__name__", function))
+
+
+def _format_func(function):
+    # type: (object) -> t.Text
+    if getattr(function, "__name__", None) == "<lambda>":
+        assert isinstance(function, types.FunctionType)
+        try:
+            return color.purple.bold(_decipher_lambda(function))
+        except Exception:
+            pass
+    return color.method(_name_func(function))
+
+
+def _format_maybe_func(obj):
+    # type: (object) -> t.Text
+    if callable(obj):
+        return _format_func(obj)
+    return repr(obj)
 
 
 def field_repr(field, env=None):
@@ -132,20 +153,7 @@ def field_repr(field, env=None):
     if field.comodel_name:
         parts[-1] += " to {}".format(color.model(field.comodel_name))
 
-    properties = [
-        attr
-        for attr in (
-            "readonly",
-            "required",
-            "store",
-            "index",
-            "auto_join",
-            "compute_sudo",
-            "related_sudo",
-            "translate",
-        )
-        if getattr(field, attr, False)
-    ]
+    properties = _find_field_attrs(field)
     if properties:
         parts[-1] += " ({})".format(", ".join(properties))
 
@@ -156,90 +164,32 @@ def field_repr(field, env=None):
         else:
             parts[-1] += ": " + field.help
 
-    if field.related:
-        parts.append("Delegated to {}".format(color.field(".".join(field.related))))
-    elif getattr(field, "column", False) and type(field.column).__name__ == "related":
-        parts.append("Delegated to {}".format(color.field(".".join(field.column.arg))))
+    related = _find_field_delegated(field)
+    if related:
+        parts.append("Delegated to {}".format(color.field(related)))
     else:
-        func = _find_computer(env, field)
-        if getattr(func, "__name__", None) == "<lambda>":
-            assert isinstance(func, types.FunctionType)
-            try:
-                func = _decipher_lambda(func)
-            except Exception:
-                pass
-        if callable(func):
-            func = getattr(func, "__name__", func)
+        func = _find_computer(field, env)
         if func:
-            parts.append("Computed by {}".format(color.method(str(func))))
+            parts.append("Computed by {}".format(_format_func(func)))
 
-    if getattr(model, "_constraint_methods", False):
-        for constrainer in model._constraint_methods:
-            if field.name in constrainer._constrains:
-                parts.append(
-                    "Constrained by {}".format(
-                        color.method(getattr(constrainer, "__name__", constrainer))
-                    )
-                )
-
-    if field.relational:
-        inverse_names = set()  # type: t.Set[str]
-        inverse_names.update(inv.name for inv in getattr(field, "inverse_fields", ()))
-        inverse_name = getattr(field, "inverse_name", False)
-        if inverse_name:
-            inverse_names.add(inverse_name)
-        if field.comodel_name:
-            for other_field in env[field.comodel_name]._fields.values():
-                if (
-                    other_field.comodel_name == field.model_name
-                    and getattr(other_field, "inverse_name", False) == field.name
-                ):
-                    inverse_names.add(other_field.name)
-        if inverse_names:
-            parts.append(
-                "Inverts {}".format(
-                    ", ".join(color.field(name) for name in sorted(inverse_names))
-                )
-            )
+    for inverse in _find_inverse_names(field, env):
+        parts.append("Inverts {}".format(color.field(inverse)))
 
     if field.default:
-        default = _find_field_default(model, field)
+        parts.append(
+            "Default value: {}".format(
+                _format_maybe_func(_find_field_default(field, model))
+            )
+        )
 
-        show_literal = False
+    if isinstance(field, odoo.fields.Selection):
+        parts.append(_format_selection_values(field))
 
-        if getattr(default, "__module__", None) in {"odoo.fields", "openerp.fields"}:
-            default = color.purple.bold("(Unknown)")
-            show_literal = True
+    for constrainer in _find_constraint_methods(field, model):
+        parts.append("Constrained by {}".format(_format_func(constrainer)))
 
-        try:
-            if getattr(default, "__name__", None) == "<lambda>":
-                assert isinstance(default, types.FunctionType)
-                source = _decipher_lambda(default)
-                default = color.purple.bold(source)
-                show_literal = True
-        except Exception:
-            pass
-
-        if callable(default):
-            default = color.method(getattr(default, "__name__", str(default)))
-            show_literal = True
-
-        if show_literal:
-            parts.append(u"Default value: {}".format(default))
-        else:
-            parts.append("Default value: {!r}".format(default))
-
-    if field.type == "selection":
-        if MYPY:
-            assert isinstance(field, odoo.fields.Selection)
-        if isinstance(field.selection, Text):
-            sel = u"Values computed by {}".format(color.method(field.selection))
-        elif callable(field.selection):
-            sel = u"Values computed by {}".format(color.method(repr(field.selection)))
-        else:
-            # Most likely a list of 2-tuples
-            sel = color.highlight(pprint.pformat(field.selection))
-        parts.append(sel)
+    for onchange in _find_onchange_methods(field, model):
+        parts.append("On change: {}".format(_format_func(onchange)))
 
     src = sources.find_source(field)
     parts.extend(sources.format_sources(src))
@@ -255,8 +205,26 @@ def field_repr(field, env=None):
     return "\n".join(parts)
 
 
-def _find_computer(env, field):
-    # type: (odoo.api.Environment, Field) -> object
+def _find_field_attrs(field):
+    # type: (Field) -> t.List[str]
+    return [
+        attr
+        for attr in (
+            "readonly",
+            "required",
+            "store",
+            "index",
+            "auto_join",
+            "compute_sudo",
+            "related_sudo",
+            "translate",
+        )
+        if getattr(field, attr, False)
+    ]
+
+
+def _find_computer(field, env):
+    # type: (Field, odoo.api.Environment) -> object
     if field.compute is not None:
         func = field.compute
         func = getattr(func, "__func__", func)
@@ -291,15 +259,27 @@ def _decipher_lambda(func):
     return source
 
 
-def _find_field_default(model, field):
-    # type: (odoo.models.BaseModel, Field) -> object
-    # TODO: was the commented out code useful?
-    if hasattr(model, "_defaults"):  # and not callable(model._defaults[field.name]):
-        default = model._defaults[field.name]
-    elif field.default:
-        default = field.default
+def _find_field_delegated(field):
+    # type: (Field) -> t.Optional[t.Text]
+    if field.related:
+        return ".".join(field.related)
+    elif getattr(field, "column", False) and type(field.column).__name__ == "related":
+        return ".".join(field.column.arg)  # type: ignore
     else:
         return None
+
+
+def _find_field_default(field, model):
+    # type: (Field, odoo.models.BaseModel) -> object
+    # TODO: was the commented out code useful?
+    default = field.default
+    if (
+        getattr(default, "__module__", None)
+        in {"odoo.api", "odoo.fields", "openerp.api", "openerp.fields"}
+        and hasattr(model, "_defaults")
+        and field.name in model._defaults
+    ):
+        default = model._defaults[field.name]
 
     try:
         # Very nasty but works some of the time
@@ -318,3 +298,45 @@ def _find_field_default(model, field):
         pass
 
     return default
+
+
+def _find_constraint_methods(field, model):
+    # type: (Field, odoo.models.BaseModel) -> t.Iterable[object]
+    for constrainer in getattr(model, "_constraint_methods", ()):
+        if field.name in constrainer._constrains:
+            yield constrainer
+
+
+def _find_onchange_methods(field, model):
+    # type: (Field, odoo.models.BaseModel) -> t.Iterable[object]
+    return model._onchange_methods.get(field.name, ())
+
+
+def _find_inverse_names(field, env):
+    # type: (Field, odoo.api.Environment) -> t.Set[str]
+    inverse_names = set()  # type: t.Set[str]
+    if not field.relational:
+        return inverse_names
+    inverse_names.update(inv.name for inv in getattr(field, "inverse_fields", ()))
+    inverse_name = getattr(field, "inverse_name", False)
+    if inverse_name:
+        inverse_names.add(inverse_name)
+    if field.comodel_name:
+        for other_field in env[field.comodel_name]._fields.values():
+            if (
+                other_field.comodel_name == field.model_name
+                and getattr(other_field, "inverse_name", False) == field.name
+            ):
+                inverse_names.add(other_field.name)
+    return inverse_names
+
+
+def _format_selection_values(field):
+    # type: (odoo.fields.Selection[t.Any]) -> t.Text
+    if isinstance(field.selection, Text):
+        return u"Values computed by {}".format(color.method(field.selection))
+    elif callable(field.selection):
+        return u"Values computed by {}".format(color.method(repr(field.selection)))
+    else:
+        # Most likely a list of 2-tuples
+        return color.highlight(pprint.pformat(field.selection))
