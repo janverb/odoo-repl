@@ -641,7 +641,21 @@ def _parse_search_query(
         raise ValueError(
             "Couldn't divide into leaves: {!r}".format(clauses + [tuple(curr)])
         )
-    clauses.extend((k, "=", getattr(v, "id", v)) for k, v in field_vals.items())
+    clauses.extend((k, "=", v) for k, v in field_vals.items())
+
+    def to_id(thing):
+        # type: (object) -> t.Any
+        if isinstance(thing, tuple):
+            return tuple(map(to_id, thing))
+        elif isinstance(thing, list):
+            return list(map(to_id, thing))
+        elif isinstance(thing, odoo.models.BaseModel):
+            if len(thing) == 1:
+                return thing.id
+            return thing.ids
+        return thing
+
+    clauses = to_id(clauses)
 
     return clauses
 

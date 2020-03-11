@@ -39,7 +39,10 @@ class BaseModel:
     _constraint_methods: List[_Constrainer]
     _inherits: Dict[Text, Text]
     env: Environment
+    # _ids is normally a tuple, but base_suspend_security turns it into a list
+    # on res.users
     _ids: Sequence[int]
+    ids: List[int]
     @property
     def id(self: AnyModel) -> _RecordId[AnyModel]: ...
     display_name: Text
