@@ -72,7 +72,7 @@ class TestOdooRepl(TestCase):
         self.assertRegex(rep, r"\nbase: /[^\n]*demo\.xml:\d+")
 
     def test_model_repr(self):
-        rep = odoo_repl.model_repr(self.env["res.users"])
+        rep = odoo_repl.odoo_repr(self.env["res.users"])
         self.assertRegex(rep, r"^res.users\nUsers\n")
         self.assertRegex(rep, r"\nInherits from res.partner through partner_id\n")
         self.assertRegex(rep, r"\nrsd  company_id:\s*many2one: res.company \(Company\)")
@@ -239,7 +239,7 @@ Written on 20..-..-.. ..:..:.. by u.demo
         if not config.slow_tests:
             self.skipTest("Slow tests disabled")
         for model in self.ns["env"]:
-            self.assertIsInstance(model, odoo_repl.ModelProxy)
+            self.assertIsInstance(model, odoo_repl.models.ModelProxy)
             self.assertTrue(odoo_repl.odoo_repr(model))
             for field in model:
                 self.assertIsInstance(field, odoo_repl.fields.FieldProxy)

@@ -129,7 +129,7 @@ if MYPY:
 
 @overload
 def unwrap(obj):
-    # type: (odoo_repl.ModelProxy) -> odoo.models.BaseModel
+    # type: (odoo_repl.models.ModelProxy) -> odoo.models.BaseModel
     pass
 
 
@@ -156,7 +156,7 @@ def unwrap(obj):  # noqa: F811
     if isinstance(
         obj,
         (
-            odoo_repl.ModelProxy,
+            odoo_repl.models.ModelProxy,
             odoo_repl.methods.MethodProxy,
             odoo_repl.fields.FieldProxy,
         ),

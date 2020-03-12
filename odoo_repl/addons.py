@@ -65,11 +65,11 @@ class Addon(object):
 
     @property
     def models(self):
-        # type: () -> t.List[odoo_repl.ModelProxy]
+        # type: () -> t.List[odoo_repl.models.ModelProxy]
         # TODO: return AddonModelBrowser with PartialModels that show the
         # fields (and methods?) added in the addon
         return [
-            odoo_repl.ModelProxy(self._env, name, nocomplete=True)
+            odoo_repl.models.ModelProxy(self._env, name, nocomplete=True)
             for name in (
                 self._env["ir.model"]
                 .browse(
