@@ -13,7 +13,7 @@ from odoo_repl import grep
 from odoo_repl import methods
 from odoo_repl import sources
 from odoo_repl import util
-from odoo_repl.imports import abc, odoo, t, cast, Field, PY3, Text
+from odoo_repl.imports import abc, odoo, t, cast, Field, PY3, Text, BaseModel
 
 
 FIELD_BLACKLIST = {
@@ -29,7 +29,7 @@ FIELD_BLACKLIST = {
 
 
 def model_repr(obj):
-    # type: (t.Union[ModelProxy, odoo.models.BaseModel]) -> t.Text
+    # type: (t.Union[ModelProxy, BaseModel]) -> t.Text
     """Summarize a model's fields."""
     if isinstance(obj, ModelProxy) and obj._real is None:
         return repr(obj)
@@ -117,7 +117,7 @@ def _has_computer(field):
 
 
 def _find_inheritance(model):
-    # type: (odoo.models.BaseModel) -> t.Set[str]
+    # type: (BaseModel) -> t.Set[str]
     inherits = set()  # type: t.Set[str]
     for base in type(model).__bases__:
         cur_inherits = getattr(base, "_inherit", None)
@@ -221,12 +221,12 @@ class ModelProxy(object):
         return self._real.search([]).mapped(*a, **k)
 
     def filtered(self, *a, **k):
-        # type: (t.Any, t.Any) -> odoo.models.BaseModel
+        # type: (t.Any, t.Any) -> BaseModel
         assert self._real is not None
         return self._real.search([]).filtered(*a, **k)
 
     def filtered_(self, *a, **k):
-        # type: (t.Any, t.Any) -> odoo.models.BaseModel
+        # type: (t.Any, t.Any) -> BaseModel
         assert self._real is not None
         return self._real.search([]).filtered_(*a, **k)  # type: ignore
 
@@ -300,7 +300,7 @@ class ModelProxy(object):
         return self._env["ir.model"].search([("model", "=", self._path)])
 
     def shuf_(self, num=1):
-        # type: (int) -> odoo.models.BaseModel
+        # type: (int) -> BaseModel
         """Return a random record, or multiple."""
         assert self._real is not None
         return odoo_repl._BaseModel_search_(self._real, shuf=num)
@@ -355,7 +355,7 @@ class ModelProxy(object):
 
         if isinstance(view_id, Text):
             view_id = cast("odoo.models.IrUiView", self._env.ref(view_id))
-        if isinstance(view_id, odoo.models.BaseModel):
+        if isinstance(view_id, BaseModel):
             if view_id._name != "ir.ui.view":
                 raise TypeError("view_id must be ir.ui.view")
             view_id = view_id.id
@@ -451,7 +451,7 @@ class ModelProxy(object):
 
 def _to_user(
     env,  # type: odoo.api.Environment
-    user,  # type: t.Union[odoo.models.BaseModel, t.Text, int]
+    user,  # type: t.Union[BaseModel, t.Text, int]
 ):
     # type: (...) -> odoo.models.ResUsers
     if isinstance(user, Text):
@@ -462,7 +462,7 @@ def _to_user(
         return user
     elif isinstance(user, int):
         return env["res.users"].browse(user)
-    if not isinstance(user, odoo.models.BaseModel):
+    if not isinstance(user, BaseModel):
         raise ValueError("Can't convert type of {!r} to user".format(user))
     if user._name == "res.users":
         return user  # type: ignore

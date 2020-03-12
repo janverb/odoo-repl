@@ -3,14 +3,14 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from odoo_repl.imports import odoo, t, MYPY, Text, Field
+from odoo_repl.imports import t, MYPY, Text, Field, BaseModel
 
 if MYPY:
     Fingerprint = t.Tuple[t.Tuple[t.Text, object], ...]
 
 
 def fingerprint(record):
-    # type: (odoo.models.BaseModel) -> Fingerprint
+    # type: (BaseModel) -> Fingerprint
     if len(record) != 1:
         raise ValueError("To get fingerprints of multiple records, use `fingerprints`.")
 
@@ -28,17 +28,17 @@ def fingerprint(record):
 
 
 def fingerprints(records):
-    # type: (odoo.models.BaseModel) -> t.FrozenSet[Fingerprint]
+    # type: (BaseModel) -> t.FrozenSet[Fingerprint]
     return frozenset(map(fingerprint, records))
 
 
 def dictfprints(records):
-    # type: (odoo.models.BaseModel) -> t.List[t.Dict[t.Text, object]]
+    # type: (BaseModel) -> t.List[t.Dict[t.Text, object]]
     return [dict(fprint) for fprint in fingerprints(records)]
 
 
 def inhomogenities(records):
-    # type: (odoo.models.BaseModel) -> None
+    # type: (BaseModel) -> None
     prints = dictfprints(records)
     for field in sorted(records._fields):
         values = {prnt[field] for prnt in prints}
@@ -47,7 +47,7 @@ def inhomogenities(records):
 
 
 def differences(a, b, loose=False):
-    # type: (odoo.models.BaseModel, odoo.models.BaseModel, bool) -> None
+    # type: (BaseModel, BaseModel, bool) -> None
     if a._name != b._name:
         raise TypeError("Can only compare records of same model")
 

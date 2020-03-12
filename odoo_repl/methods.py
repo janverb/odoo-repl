@@ -10,12 +10,12 @@ from odoo_repl import grep
 from odoo_repl import sources
 from odoo_repl import util
 
-from odoo_repl.imports import t, PY3, odoo
+from odoo_repl.imports import t, PY3, BaseModel
 
 
 class MethodProxy(object):
     def __init__(self, method, model, name):
-        # type: (t.Callable[..., t.Any], odoo.models.BaseModel, t.Text) -> None
+        # type: (t.Callable[..., t.Any], BaseModel, t.Text) -> None
         self._real = method
         self.model = model
         self.name = str(name)
@@ -103,7 +103,7 @@ class MethodProxy(object):
 
 
 def _get_method_docs(model, name):
-    # type: (odoo.models.BaseModel, str) -> t.List[t.Tuple[str, t.Text]]
+    # type: (BaseModel, str) -> t.List[t.Tuple[str, t.Text]]
     result = []
     for cls in type(model).__mro__:
         if name in vars(cls):

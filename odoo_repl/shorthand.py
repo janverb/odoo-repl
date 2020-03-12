@@ -1,7 +1,7 @@
 """Various helpers for accessing records with shorthand notation."""
 
 from odoo_repl import util
-from odoo_repl.imports import odoo, t, PY3
+from odoo_repl.imports import odoo, t, PY3, BaseModel
 
 __all__ = (
     "RecordBrowser",
@@ -23,7 +23,7 @@ class RecordBrowser(object):
         self._env = env
 
     def __getattr__(self, attr):
-        # type: (t.Text) -> odoo.models.BaseModel
+        # type: (t.Text) -> BaseModel
         try:
             thing = self._env[self._model].search([(self._field, "=", attr)])
         except AttributeError as err:
@@ -134,7 +134,7 @@ class DataBrowser(object):
         return util.sql(self._env, "SELECT DISTINCT module FROM ir_model_data")
 
     def __call__(self, query):
-        # type: (t.Text) -> odoo.models.BaseModel
+        # type: (t.Text) -> BaseModel
         return self._env.ref(query)
 
 
@@ -147,7 +147,7 @@ class DataModuleBrowser(object):
         self._module = module
 
     def __getitem__(self, key):
-        # type: (t.Text) -> odoo.models.BaseModel
+        # type: (t.Text) -> BaseModel
         try:
             return self._env.ref("{}.{}".format(self._module, key))
         except ValueError as err:
@@ -166,7 +166,7 @@ class DataModuleBrowser(object):
             raise
 
     def __getattr__(self, attr):
-        # type: (t.Text) -> odoo.models.BaseModel
+        # type: (t.Text) -> BaseModel
         try:
             return self[attr]
         except KeyError:

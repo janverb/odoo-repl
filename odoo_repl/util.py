@@ -10,7 +10,7 @@ import string
 
 import odoo_repl
 
-from odoo_repl.imports import t, overload, odoo, MYPY, Field, PY3
+from odoo_repl.imports import t, overload, odoo, MYPY, Field, PY3, BaseModel
 
 
 # Globally accessible environment. Use sparingly.
@@ -18,7 +18,7 @@ env = None  # type: odoo.api.Environment  # type: ignore
 
 
 def module(cls):
-    # type: (t.Type[odoo.models.BaseModel]) -> str
+    # type: (t.Type[BaseModel]) -> str
     return getattr(cls, "_module", cls.__name__)  # type: ignore
 
 
@@ -58,7 +58,7 @@ def is_name(ident):
 
 
 def xml_ids(obj):
-    # type: (odoo.models.BaseModel) -> t.List[XmlId]
+    # type: (BaseModel) -> t.List[XmlId]
     """Return all of a record's XML ids.
 
     .get_external_id() returns at most one result per record.
@@ -124,12 +124,12 @@ def sql(env_, query, *args):
 
 
 if MYPY:
-    T = t.TypeVar("T", odoo.models.BaseModel, Field, t.Callable[..., t.Any])
+    T = t.TypeVar("T", BaseModel, Field, t.Callable[..., t.Any])
 
 
 @overload
 def unwrap(obj):
-    # type: (odoo_repl.models.ModelProxy) -> odoo.models.BaseModel
+    # type: (odoo_repl.models.ModelProxy) -> BaseModel
     pass
 
 

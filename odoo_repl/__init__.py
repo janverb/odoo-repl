@@ -52,14 +52,7 @@ from odoo_repl import models
 from odoo_repl import shorthand
 from odoo_repl import sources
 from odoo_repl import util
-from odoo_repl.imports import (
-    PY3,
-    odoo,
-    t,
-    Text,
-    builtins,
-    StringIO,
-)
+from odoo_repl.imports import PY3, odoo, BaseModel, t, Text, builtins, StringIO
 
 FIELD_VALUE_BLACKLIST = {
     # Showing these by default feels icky
@@ -210,7 +203,7 @@ def enable(
 
 
 def _color_repr(owner, field_name):
-    # type: (odoo.models.BaseModel, t.Text) -> t.Text
+    # type: (BaseModel, t.Text) -> t.Text
     """Return a color-coded representation of a record's field value."""
     if hasattr(owner.env, "prefetch"):  # Not all Odoo versions
         # The prefetch cache may be filled up by previous calls, see record_repr
@@ -231,7 +224,7 @@ def odoo_repr(obj):
         return methods.method_repr(obj)
     elif isinstance(obj, fields.FieldProxy):
         return fields.field_repr(obj._real, env=obj._env)
-    elif isinstance(obj, odoo.models.BaseModel):
+    elif isinstance(obj, BaseModel):
         return record_repr(obj)
     elif isinstance(obj, addons.Addon):
         return str(obj)
@@ -248,12 +241,12 @@ def odoo_print(obj, **kwargs):
 
 
 def _xml_id_tag(obj):
-    # type: (odoo.models.BaseModel) -> t.Text
+    # type: (BaseModel) -> t.Text
     return "".join(" ({})".format(xml_id.to_ref()) for xml_id in util.xml_ids(obj))
 
 
 def _record_header(obj):
-    # type: (odoo.models.BaseModel) -> t.Text
+    # type: (BaseModel) -> t.Text
     header = color.header("{}[{!r}]".format(obj._name, obj.id)) + _xml_id_tag(obj)
     if obj.env.uid != 1:
         header += " (as {})".format(color.render_user(obj.env.user))
@@ -278,7 +271,7 @@ def _ids_repr(idlist):
 
 
 def record_repr(obj):
-    # type: (odoo.models.BaseModel) -> t.Text
+    # type: (BaseModel) -> t.Text
     """Display all of a record's fields."""
     obj = util.unwrap(obj)
 
@@ -351,7 +344,7 @@ def record_repr(obj):
 
 
 def _get_create_write_history(obj):
-    # type: (odoo.models.BaseModel) -> t.List[str]
+    # type: (BaseModel) -> t.List[str]
     if "create_date" not in obj._fields:
         return []
     history_lines = []
@@ -404,7 +397,7 @@ def edit(thing, index=0, bg=None):
 
 
 def _BaseModel_repr_pretty_(self, printer, _cycle):
-    # type: (odoo.models.BaseModel, t.Any, t.Any) -> None
+    # type: (BaseModel, t.Any, t.Any) -> None
     if printer.indentation == 0 and hasattr(self, "_ids"):
         printer.text(record_repr(self))
     else:
@@ -481,11 +474,11 @@ class EnvProxy(object):
 
 
 def _BaseModel_create_(
-    self,  # type: odoo.models.BaseModel
+    self,  # type: BaseModel
     vals=None,  # type: t.Optional[t.Dict[str, t.Any]]
     **field_vals  # type: t.Any
 ):
-    # type: (...) -> odoo.models.BaseModel
+    # type: (...) -> BaseModel
     """Create a new record, optionally with keyword arguments.
 
     .create_(x='test', y=<some record>) is typically equivalent to
@@ -556,7 +549,7 @@ def _parse_search_query(
             return tuple(map(to_id, thing))
         elif isinstance(thing, list):
             return list(map(to_id, thing))
-        elif isinstance(thing, odoo.models.BaseModel):
+        elif isinstance(thing, BaseModel):
             if len(thing) == 1:
                 return thing.id
             return thing.ids
@@ -568,11 +561,11 @@ def _parse_search_query(
 
 
 def _BaseModel_search_(
-    self,  # type: t.Union[odoo.models.BaseModel, models.ModelProxy]
+    self,  # type: t.Union[BaseModel, models.ModelProxy]
     *args,  # type: object
     **field_vals  # type: t.Any
 ):
-    # type: (...) -> odoo.models.BaseModel
+    # type: (...) -> BaseModel
     # if count=True, this returns an int, but that may not be worth annotating
     """Perform a quick and dirty search.
 
@@ -633,11 +626,11 @@ def _BaseModel_filtered_(
 def _is_record(obj):
     # type: (object) -> bool
     """Return whether an object is an Odoo record."""
-    return isinstance(obj, odoo.models.BaseModel) and hasattr(obj, "_ids")
+    return isinstance(obj, BaseModel) and hasattr(obj, "_ids")
 
 
 def _BaseModel_source_(record, location=None, context=False):
-    # type: (odoo.models.BaseModel, t.Optional[t.Text], bool) -> None
+    # type: (BaseModel, t.Optional[t.Text], bool) -> None
     import lxml.etree
 
     for rec in record:
@@ -652,13 +645,13 @@ def _BaseModel_source_(record, location=None, context=False):
 
 
 try:
-    odoo.models.BaseModel._repr_pretty_ = _BaseModel_repr_pretty_  # type: ignore
-    odoo.models.BaseModel.edit_ = edit  # type: ignore
-    odoo.models.BaseModel.print_ = odoo_print  # type: ignore
-    odoo.models.BaseModel.search_ = _BaseModel_search_  # type: ignore
-    odoo.models.BaseModel.create_ = _BaseModel_create_  # type: ignore
-    odoo.models.BaseModel.filtered_ = _BaseModel_filtered_  # type: ignore
-    odoo.models.BaseModel.source_ = _BaseModel_source_  # type: ignore
+    BaseModel._repr_pretty_ = _BaseModel_repr_pretty_  # type: ignore
+    BaseModel.edit_ = edit  # type: ignore
+    BaseModel.print_ = odoo_print  # type: ignore
+    BaseModel.search_ = _BaseModel_search_  # type: ignore
+    BaseModel.create_ = _BaseModel_create_  # type: ignore
+    BaseModel.filtered_ = _BaseModel_filtered_  # type: ignore
+    BaseModel.source_ = _BaseModel_source_  # type: ignore
     odoo.fields.Field.edit_ = edit  # type: ignore
 except AttributeError:
     pass

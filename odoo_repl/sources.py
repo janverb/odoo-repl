@@ -12,12 +12,10 @@ import odoo_repl
 from odoo_repl import color
 from odoo_repl import config
 from odoo_repl import util
-from odoo_repl.imports import odoo, t, MYPY, Field
+from odoo_repl.imports import odoo, t, MYPY, Field, BaseModel
 
 if MYPY:
-    Sourceable = t.Union[
-        odoo.models.BaseModel, odoo.fields.Field, odoo_repl.methods.MethodProxy
-    ]
+    Sourceable = t.Union[BaseModel, odoo.fields.Field, odoo_repl.methods.MethodProxy]
 
 RE_FIELD = re.compile(
     r"""
@@ -71,7 +69,7 @@ class Source(_Source):
 
     @classmethod
     def from_cls(cls, src_cls):
-        # type: (t.Type[odoo.models.BaseModel]) -> Source
+        # type: (t.Type[BaseModel]) -> Source
         return cls(
             util.module(src_cls),
             getsourcefile(src_cls),
@@ -81,7 +79,7 @@ class Source(_Source):
 
 def find_source(thing):
     # type: (Sourceable) -> t.List[Source]
-    if isinstance(thing, odoo.models.BaseModel) and hasattr(thing, "_ids"):
+    if isinstance(thing, BaseModel) and hasattr(thing, "_ids"):
         if not thing._ids:
             return find_model_source(util.unwrap(thing))
         else:
@@ -115,7 +113,7 @@ def format_sources(sources):
 
 
 def find_model_source(model):
-    # type: (odoo.models.BaseModel) -> t.List[Source]
+    # type: (BaseModel) -> t.List[Source]
     # Note: This does not include inherited models with other names.
     # We should probably show those in some way.
     return [
@@ -126,7 +124,7 @@ def find_model_source(model):
 
 
 def find_record_source(record):
-    # type: (odoo.models.BaseModel) -> t.List[Source]
+    # type: (BaseModel) -> t.List[Source]
     return [
         Source(defin.module, defin.fname, defin.elem.sourceline)
         for rec in record

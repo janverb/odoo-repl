@@ -10,7 +10,7 @@ import odoo_repl
 from odoo_repl import config
 from odoo_repl import shorthand
 from odoo_repl import util
-from odoo_repl.imports import odoo, t, TextLike, MYPY, Field
+from odoo_repl.imports import odoo, t, TextLike, MYPY, Field, BaseModel
 
 
 class Color:
@@ -88,7 +88,7 @@ def render_user(obj):
 
 
 def _render_record(obj):
-    # type: (odoo.models.BaseModel) -> t.Text
+    # type: (BaseModel) -> t.Text
     if not hasattr(obj, "_ids") or not obj._ids:
         return missing("{}[]".format(obj._name))
     if len(obj._ids) > 10:
@@ -145,7 +145,7 @@ def color_value(obj, field_type):
         # False shows up as green if it's a Boolean, and red if it's a
         # default value, so red values always mean "missing"
         return boolean(repr(obj))
-    elif isinstance(obj, odoo.models.BaseModel):
+    elif isinstance(obj, BaseModel):
         return _render_record(obj)
     elif isinstance(obj, TextLike):
         rep = repr(obj)  # type: t.Text

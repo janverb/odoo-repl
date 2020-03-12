@@ -59,10 +59,13 @@ else:
 
 if MYPY:
     Field = odoo.fields.Field[t.Any, t.Any]
-elif odoo is not None and hasattr(odoo, "fields"):
+    BaseModel = odoo.models.BaseModel
+elif odoo is not None and hasattr(odoo, "fields") and hasattr(odoo, "models"):
     Field = odoo.fields.Field
+    BaseModel = odoo.models.BaseModel
 else:
     Field = None
+    BaseModel = None
 
 
 __all__ = (
@@ -77,5 +80,6 @@ __all__ = (
     "TextLike",
     "builtins",
     "Field",
+    "BaseModel",
     "StringIO",
 )

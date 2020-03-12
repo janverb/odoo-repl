@@ -9,7 +9,7 @@ from odoo_repl import color
 from odoo_repl import methods
 from odoo_repl import sources
 from odoo_repl import util
-from odoo_repl.imports import t, odoo, Field, PY3, Text
+from odoo_repl.imports import t, odoo, Field, BaseModel, PY3, Text
 
 
 class FieldProxy(object):
@@ -270,7 +270,7 @@ def _find_field_delegated(field):
 
 
 def _find_field_default(field, model):
-    # type: (Field, odoo.models.BaseModel) -> object
+    # type: (Field, BaseModel) -> object
     # TODO: was the commented out code useful?
     default = field.default
     if (
@@ -301,14 +301,14 @@ def _find_field_default(field, model):
 
 
 def _find_constraint_methods(field, model):
-    # type: (Field, odoo.models.BaseModel) -> t.Iterable[object]
+    # type: (Field, BaseModel) -> t.Iterable[object]
     for constrainer in getattr(model, "_constraint_methods", ()):
         if field.name in constrainer._constrains:
             yield constrainer
 
 
 def _find_onchange_methods(field, model):
-    # type: (Field, odoo.models.BaseModel) -> t.Iterable[object]
+    # type: (Field, BaseModel) -> t.Iterable[object]
     return model._onchange_methods.get(field.name, ())
 
 
