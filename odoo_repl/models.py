@@ -49,7 +49,7 @@ def model_repr(obj):
 
     parts.append(color.header(obj._name))
     if getattr(obj, "_description", False):
-        parts.append(obj._description)
+        parts.append(color.display_name(obj._description))
     if getattr(obj, "_inherits", False):
         for model_name, field_name in obj._inherits.items():
             parts.append(
@@ -57,6 +57,15 @@ def model_repr(obj):
                     color.model(model_name), color.field(field_name)
                 )
             )
+    inherits = _find_inheritance(obj)
+    if inherits:
+        # Giving this a very similar message to the one for _inherits feels dirty
+        # But then _inherit is already very similar to _inherits so maybe it's ok
+        parts.append(
+            "Inherits from {}".format(
+                ", ".join(color.model(inherit) for inherit in sorted(inherits))
+            )
+        )
     for field in field_names:
         f_obj = obj._fields[field]
         parts.append(
@@ -105,6 +114,20 @@ def _has_computer(field):
         field.compute is not None
         or type(getattr(field, "column", None)).__name__ == "function"
     )
+
+
+def _find_inheritance(model):
+    # type: (odoo.models.BaseModel) -> t.Set[str]
+    inherits = set()  # type: t.Set[str]
+    for base in type(model).__bases__:
+        cur_inherits = getattr(base, "_inherit", None)
+        if not cur_inherits:
+            continue
+        if isinstance(cur_inherits, Text):
+            inherits.add(cur_inherits)  # type: ignore
+        else:
+            inherits.update(cur_inherits)
+    return inherits - {model._name, "base"}
 
 
 class ModelProxy(object):
