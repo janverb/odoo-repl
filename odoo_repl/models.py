@@ -405,10 +405,10 @@ class ModelProxy(object):
                 """,
                 (self._real._table,),
             )
-            info = dict(cr.fetchall())  # type: ignore
+            info = cr.fetchall()
         print(color.header(self._real._table))
-        max_len = max(len(name) for name in info)
-        for name, datatype in info.items():
+        max_len = max(len(name) for name, _ in info)
+        for name, datatype in info:
             print(
                 "{}: ".format(color.field(name))
                 + (max_len - len(name)) * " "
