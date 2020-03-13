@@ -12,7 +12,7 @@ import odoo_repl
 from odoo_repl import color
 from odoo_repl import config
 from odoo_repl import util
-from odoo_repl.imports import odoo, t, MYPY, Field, BaseModel
+from odoo_repl.imports import odoo, t, MYPY, PY3, Field, BaseModel
 
 if MYPY:
     Sourceable = t.Union[BaseModel, odoo.fields.Field, odoo_repl.methods.MethodProxy]
@@ -250,3 +250,41 @@ def populate_xml_records(modules):
                     xml_records[ident].append(
                         RecordDef(module=module, fname=fname, elem=record)
                     )
+
+
+def _cleandoc(doc):
+    # type: (t.Union[str, t.Text]) -> t.Text
+    doc = inspect.cleandoc(doc)  # type: ignore
+    if not PY3 and isinstance(doc, str):
+        # Sometimes people put unicode in non-unicode docstrings
+        # unicode.join does not like non-ascii strs so this has to be early
+        try:
+            # everybody's source code is UTF-8-compatible, right?
+            doc = doc.decode("utf8")
+        except UnicodeDecodeError:
+            # Let's just hope for the best
+            pass
+    return doc
+
+
+def find_docs(things):
+    # type: (t.Iterable[t.Tuple[str, object]]) -> t.Iterable[t.Tuple[str, t.Text]]
+    for name, thing in things:
+        doc = getattr(thing, "__doc__", None)
+        if doc:
+            doc = _cleandoc(doc)
+            yield name, doc
+
+
+def format_docs(docs):
+    # type: (t.Iterable[t.Tuple[str, t.Text]]) -> t.Iterable[t.Text]
+    docs = list(docs)
+    for module, doc in docs:
+        doc = color.highlight(doc, "rst")
+        if len(docs) == 1:
+            yield doc
+        elif "\n" in doc:
+            yield "{}:".format(color.module(module))
+            yield doc
+        else:
+            yield "{}: {}".format(color.module(module), doc)

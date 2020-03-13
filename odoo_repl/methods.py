@@ -103,24 +103,12 @@ class MethodProxy(object):
 
 
 def _get_method_docs(model, name):
-    # type: (BaseModel, str) -> t.List[t.Tuple[str, t.Text]]
-    result = []
-    for cls in type(model).__mro__:
-        if name in vars(cls):
-            doc = getattr(vars(cls)[name], "__doc__", None)
-            if doc:
-                doc = inspect.cleandoc(doc)
-                if not PY3 and isinstance(doc, str):
-                    # Sometimes people put unicode in non-unicode docstrings
-                    # unicode.join does not like non-ascii strs so this has to be early
-                    try:
-                        # everybody's source code is UTF-8-compatible, right?
-                        doc = doc.decode("utf8")
-                    except UnicodeDecodeError:
-                        # Let's just hope for the best
-                        pass
-                result.append((util.module(cls), doc))
-    return result
+    # type: (BaseModel, str) -> t.Iterable[t.Tuple[str, t.Text]]
+    return sources.find_docs(
+        (util.module(cls), vars(cls)[name])
+        for cls in type(model).__mro__
+        if name in vars(cls)
+    )
 
 
 def method_repr(methodproxy):
@@ -146,15 +134,7 @@ def method_repr(methodproxy):
             model=color.model(model._name), name=color.method(name), signature=signature
         )
     )
-    for module, doc in docs:
-        doc = color.highlight(doc, "rst")
-        if len(docs) == 1:
-            parts.append(doc)
-        elif "\n" in doc:
-            parts.append("{}:".format(color.module(module)))
-            parts.append(doc)
-        else:
-            parts.append("{}: {}".format(color.module(module), doc))
+    parts.extend(sources.format_docs(docs))
     parts.append("")
     parts.extend(sources.format_sources(src))
     return "\n".join(parts)
