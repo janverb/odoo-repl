@@ -3,6 +3,7 @@ from __future__ import print_function
 import inspect
 import pprint
 import re
+import string
 import types
 
 from odoo_repl import color
@@ -256,6 +257,8 @@ def _decipher_lambda(func):
         if re.search(r",[^)]*$", source):
             source = source.rsplit(",")[0].strip()
         compile(source, "", "eval")
+    # A trailing comma is normally outside the lambda
+    source = source.strip(string.whitespace + ",")
     return source
 
 
