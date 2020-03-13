@@ -66,6 +66,12 @@ def model_repr(obj):
                 ", ".join(color.model(inherit) for inherit in sorted(inherits))
             )
         )
+    docs = list(
+        sources.find_docs((util.module(cls), cls) for cls in type(obj).__bases__)
+    )
+    parts.extend(sources.format_docs(docs))
+    if docs:
+        parts.append("")
     for field in field_names:
         f_obj = obj._fields[field]
         parts.append(
