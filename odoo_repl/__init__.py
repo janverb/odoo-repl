@@ -641,7 +641,7 @@ def _BaseModel_source_(record, location=None, context=False):
                 elem = definition.elem.getroottree() if context else definition.elem
                 print(sources.format_source(definition.to_source()))
                 src = lxml.etree.tostring(elem, encoding="unicode")
-                print(color.highlight(src, "xml"))
+                print(color.highlight(src, "xml"), end="\n\n")
 
 
 try:
