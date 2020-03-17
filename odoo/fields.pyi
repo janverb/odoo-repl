@@ -32,6 +32,7 @@ class Field(Generic[T, Required]):
     string: Text
     relational: bool
     compute: object
+    store: bool
     column: Any
     default: object
     help: Optional[Text]

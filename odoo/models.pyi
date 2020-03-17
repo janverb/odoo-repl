@@ -11,6 +11,7 @@ from typing import (
     Callable,
     Dict,
     Generic,
+    Iterable,
     Iterator,
     List,
     Optional,
@@ -35,6 +36,7 @@ class BaseModel:
     _table: Text
     _name: Text
     _description: Text
+    _auto: bool
     _defaults: Dict[Text, object]
     _constraint_methods: List[_Constrainer]
     # Actually a defaultdict but let's not rely on that
@@ -53,7 +55,7 @@ class BaseModel:
     create_uid: ResUsers
     write_date = fields.Datetime()
     write_uid: ResUsers
-    def browse(self: AnyModel, ids: Union[int, Sequence[int]]) -> AnyModel: ...
+    def browse(self: AnyModel, ids: Union[int, Iterable[int]]) -> AnyModel: ...
     def exists(self: AnyModel) -> AnyModel: ...
     def sudo(self: AnyModel, user: Union[int, ResUsers] = ...) -> AnyModel: ...
     def with_context(
@@ -79,6 +81,8 @@ class BaseModel:
     ) -> AnyModel: ...
     def create(self: AnyModel, vals: Dict[str, object]) -> AnyModel: ...
     def write(self, vals: Dict[str, object]) -> bool: ...
+    # todo: handle .read() in mypy-odoo
+    def read(self, fields: Sequence[str] = ...) -> List[Dict[str, Any]]: ...
     @overload
     def mapped(self, func: Text) -> Union[List[object], BaseModel]: ...
     @overload
