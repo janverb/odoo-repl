@@ -139,6 +139,7 @@ class IrModel(BaseModel):
     name = fields.Char(required=True)
 
 class IrModelData(BaseModel):
+    complete_name = fields.Char(required=True)
     module = fields.Char(required=True)
     name = fields.Char(required=True)
     # res_id is not actually required, but it seems like integers aren't nullable?

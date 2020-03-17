@@ -182,6 +182,7 @@ class ModelProxy(object):
 
     def __dir__(self):
         # type: () -> t.List[t.Text]
+        # Methods that should be excluded when we're not proxying a real model
         real_methods = {
             "shuf_",
             "mod_",
@@ -190,7 +191,13 @@ class ModelProxy(object):
             "view_",
             "sql_",
             "grep_",
+            "_",
             "methods_",
+            "mapped",
+            "filtered",
+            "get_xml_id",
+            "filtered_",
+            "_all_ids_",
         }  # type: t.Set[t.Text]
         if PY3:
             listing = set(super().__dir__())
@@ -234,6 +241,16 @@ class ModelProxy(object):
         # type: (t.Any, t.Any) -> BaseModel
         assert self._real is not None
         return self._real.search([]).filtered(*a, **k)
+
+    def get_xml_id(self):
+        # type: () -> t.Dict[int, t.Text]
+        assert self._real is not None
+        return {
+            data.res_id: data.complete_name
+            for data in self._env["ir.model.data"].search(
+                [("model", "=", self._real._name)], order="res_id asc"
+            )
+        }
 
     def filtered_(self, *a, **k):
         # type: (t.Any, t.Any) -> BaseModel
