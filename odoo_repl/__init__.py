@@ -46,6 +46,7 @@ from odoo_repl import addons
 from odoo_repl import color
 from odoo_repl import config
 from odoo_repl import fields
+from odoo_repl import fzf
 from odoo_repl import grep
 from odoo_repl import methods
 from odoo_repl import models
@@ -652,6 +653,7 @@ try:
     BaseModel.create_ = _BaseModel_create_  # type: ignore
     BaseModel.filtered_ = _BaseModel_filtered_  # type: ignore
     BaseModel.source_ = _BaseModel_source_  # type: ignore
+    BaseModel.fzf_ = fzf.fzf_field  # type: ignore
     odoo.fields.Field.edit_ = edit  # type: ignore
 except AttributeError:
     pass

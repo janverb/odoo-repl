@@ -38,10 +38,12 @@ except ImportError:
 
 
 if PY3:
+    Unicode = str
     Text = (str,)
     TextLike = (str, bytes)
 else:
-    Text = (str, unicode)  # noqa: F821
+    Unicode = unicode  # noqa: F821
+    Text = (str, Unicode)
     TextLike = Text
 
 
@@ -60,12 +62,15 @@ else:
 if MYPY:
     Field = odoo.fields.Field[t.Any, t.Any]
     BaseModel = odoo.models.BaseModel
+    AnyModel = t.TypeVar("AnyModel", bound=BaseModel)
 elif odoo is not None and hasattr(odoo, "fields") and hasattr(odoo, "models"):
     Field = odoo.fields.Field
     BaseModel = odoo.models.BaseModel
+    AnyModel = None
 else:
     Field = None
     BaseModel = None
+    AnyModel = None
 
 
 __all__ = (
@@ -78,8 +83,10 @@ __all__ = (
     "overload",
     "Text",
     "TextLike",
+    "Unicode",
     "builtins",
     "Field",
     "BaseModel",
+    "AnyModel",
     "StringIO",
 )
