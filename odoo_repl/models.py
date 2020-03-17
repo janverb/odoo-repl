@@ -48,7 +48,7 @@ def model_repr(obj):
     parts = []
 
     parts.append(color.header(obj._name))
-    if getattr(obj, "_description", False):
+    if getattr(obj, "_description", False) and obj._description != obj._name:
         parts.append(color.display_name(obj._description))
     if getattr(obj, "_inherits", False):
         for model_name, field_name in obj._inherits.items():
@@ -67,7 +67,11 @@ def model_repr(obj):
             )
         )
     docs = list(
-        sources.find_docs((util.module(cls), cls) for cls in type(obj).__bases__)
+        sources.find_docs(
+            (util.module(cls), cls)
+            for cls in type(obj).__bases__
+            if getattr(cls, "_name", obj._name) == obj._name
+        )
     )
     parts.extend(sources.format_docs(docs))
     if docs:
