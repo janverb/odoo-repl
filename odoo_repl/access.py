@@ -20,7 +20,6 @@ def access_for_model(
     return (
         env["ir.model.access"]
         .search([("model_id", "=", model_id)])
-        .filtered("active")
         .filtered(
             lambda acc: not (
                 user is not None
@@ -40,7 +39,6 @@ def rules_for_model(
     return (
         env["ir.rule"]
         .search([("model_id", "=", model_id)])
-        .filtered("active")
         .filtered(
             lambda rule: not (
                 user is not None

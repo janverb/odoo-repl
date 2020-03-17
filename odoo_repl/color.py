@@ -80,15 +80,17 @@ def color_field(field_obj):
 def render_user(obj):
     # type: (odoo.models.ResUsers) -> t.Text
     return ", ".join(
-        record(shorthand.UserBrowser._repr_for_value(user.login))
-        if user.login and user.active
-        else record("res.users[{}]".format(user.id))
+        (record if user.active else missing)(
+            shorthand.UserBrowser._repr_for_value(user.login)
+        )
         for user in obj
     )
 
 
 def _render_record(obj):
     # type: (BaseModel) -> t.Text
+    # TODO: It might be nice to color inactive records with missing.
+    # But what about multi-records?
     if not hasattr(obj, "_ids") or not obj._ids:
         return missing("{}[]".format(obj._name))
     if len(obj._ids) > 10:
@@ -102,14 +104,10 @@ def _render_record(obj):
             if MYPY:
                 assert isinstance(obj, odoo.models.HrEmployee)
             return ", ".join(
-                record(shorthand.EmployeeBrowser._repr_for_value(em.user_id.login))
-                if (
-                    em.active
-                    and em.user_id
-                    and em.user_id.active
-                    and em.user_id.login
-                    and em.user_id.employee_ids == em
+                (record if em.active and em.user_id.active else missing)(
+                    shorthand.EmployeeBrowser._repr_for_value(em.user_id.login)
                 )
+                if em.user_id and em.user_id.employee_ids == em
                 else record("hr.employee[{}]".format(em.id))
                 for em in obj
             )

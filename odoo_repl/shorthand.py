@@ -25,7 +25,11 @@ class RecordBrowser(object):
     def __getattr__(self, attr):
         # type: (t.Text) -> BaseModel
         try:
-            thing = self._env[self._model].search([(self._field, "=", attr)])
+            thing = (
+                self._env[self._model]
+                .with_context(active_test=False)
+                .search([(self._field, "=", attr)])
+            )
         except AttributeError as err:
             if err.args == ("environments",) and not attr.startswith("_"):
                 # This happens when IPython runs completions in a separate thread
@@ -82,7 +86,7 @@ class UserBrowser(RecordBrowser):
 
     _model = "res.users"
     _field = "login"
-    _listing = "SELECT login FROM res_users WHERE active"
+    _listing = "SELECT login FROM res_users"
     _abbrev = "u"
 
 
@@ -98,7 +102,6 @@ class EmployeeBrowser(RecordBrowser):
         ON e.resource_id = r.id
     INNER JOIN res_users u
         ON r.user_id = u.id
-    WHERE r.active
     """
     _abbrev = "emp"
 
