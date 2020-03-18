@@ -445,7 +445,7 @@ class EnvProxy(object):
         if PY3:
             listing = set(super().__dir__())
         else:
-            listing = {"_base_parts"}  # type: t.Set[t.Text]
+            listing = {"_base_parts", "fzf_"}  # type: t.Set[t.Text]
         listing.update(self._base_parts())
         listing.update(attr for attr in dir(self._env) if not attr.startswith("__"))
         return sorted(listing)
@@ -472,6 +472,13 @@ class EnvProxy(object):
     def _ipython_key_completions_(self):
         # type: () -> t.List[t.Text]
         return list(self._env.registry)
+
+    def fzf_(self):
+        # type: () -> t.Optional[models.ModelProxy]
+        result = fzf.fzf(sorted(self._env.registry))
+        if result:
+            return self[result[0]]
+        return None
 
 
 def _BaseModel_create_(
