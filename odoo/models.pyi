@@ -46,7 +46,7 @@ class BaseModel:
     env: Environment
     # _ids is normally a tuple, but base_suspend_security turns it into a list
     # on res.users
-    _ids: Sequence[int]
+    _ids: Sequence[Union[int, NewId]]
     ids: List[int]
     @property
     def id(self: AnyModel) -> _RecordId[AnyModel]: ...
@@ -55,7 +55,8 @@ class BaseModel:
     create_uid: ResUsers
     write_date = fields.Datetime()
     write_uid: ResUsers
-    def browse(self: AnyModel, ids: Union[int, Iterable[int]]) -> AnyModel: ...
+    # .browse(<NewId>) returns an empty record, .browse([<NewId>]) works
+    def browse(self: AnyModel, ids: Union[int, Iterable[_Id]]) -> AnyModel: ...
     def exists(self: AnyModel) -> AnyModel: ...
     def sudo(self: AnyModel, user: Union[int, ResUsers] = ...) -> AnyModel: ...
     def with_context(
@@ -105,8 +106,10 @@ class BaseModel:
     def __sub__(self: AnyModel, other: AnyModel) -> AnyModel: ...
     def __len__(self) -> int: ...
 
-class _RecordId(int, Generic[AnyModel]):
-    pass
+class _RecordId(int, Generic[AnyModel]): ...
+class NewId: ...
+
+_Id = Union[int, NewId]
 
 class _Constrainer(types.FunctionType):
     _constrains: Tuple[Text]
