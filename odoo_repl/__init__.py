@@ -654,6 +654,7 @@ try:
     BaseModel.filtered_ = _BaseModel_filtered_  # type: ignore
     BaseModel.source_ = _BaseModel_source_  # type: ignore
     BaseModel.fzf_ = fzf.fzf_field  # type: ignore
+    BaseModel.xfzf_ = fzf.fzf_xml_id  # type: ignore
     odoo.fields.Field.edit_ = edit  # type: ignore
 except AttributeError:
     pass

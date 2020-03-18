@@ -41,7 +41,7 @@ def fzf_field(model, field="display_name"):
     # Using mapped() instead of indexing has potential but has its own nasty
     # edges with regards to multiple values
     filterer = (
-        (lambda rec: rec[field].display_name in res_set)
+        (lambda rec: bool(set(rec[field].mapped("display_name")) & res_set))
         if do_display_name
         else (lambda rec: Unicode(rec[field]) in res_set)
     )
@@ -67,3 +67,24 @@ def fzf_stored_field(model, field):
     if result is None:
         return None
     return model.browse(id_ for value in result for id_ in by_value[value])
+
+
+def fzf_xml_id(model):
+    # type: (AnyModel) -> t.Optional[AnyModel]
+    """Select records by their XML IDs."""
+    query = """SELECT module, name, res_id FROM ir_model_data
+    WHERE model = %s"""
+    params = [model._name]  # type: t.List[object]
+    if model:
+        query += " AND res_id IN %s"
+        params.append(tuple(model.ids))
+    with util.savepoint(model.env.cr):
+        model.env.cr.execute(query, params)
+        xml_ids = {
+            u"{}.{}".format(module, name): id_
+            for module, name, id_ in model.env.cr.fetchall()
+        }
+    result = fzf(sorted(xml_ids))
+    if result is None:
+        return None
+    return model.browse(xml_ids[ident] for ident in result)

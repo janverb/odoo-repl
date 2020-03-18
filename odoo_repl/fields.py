@@ -7,6 +7,7 @@ import string
 import types
 
 from odoo_repl import color
+from odoo_repl import fzf
 from odoo_repl import methods
 from odoo_repl import sources
 from odoo_repl import util
@@ -30,7 +31,7 @@ class FieldProxy(object):
         if PY3:
             listing = set(super().__dir__())
         else:
-            listing = {"source_"}
+            listing = {"source_", "fzf_"}
         listing.update(dir(self._real))
         return sorted(listing)
 
@@ -67,6 +68,10 @@ class FieldProxy(object):
             print(
                 color.highlight(sources.extract_field_source(source.fname, source.lnum))
             )
+
+    def fzf_(self):
+        # type: () -> t.Optional[BaseModel]
+        return fzf.fzf_field(self._env[self._real.model_name], self._real.name)
 
     def _make_method_proxy_(self, func):
         # type: (object) ->  object
