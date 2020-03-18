@@ -113,18 +113,17 @@ def _get_method_docs(model, name):
 
 def method_repr(methodproxy):
     # type: (MethodProxy) -> t.Text
-    try:
-        signature = _func_signature(methodproxy._real)
-        src = sources.find_method_source(methodproxy)
-    except (TypeError, ValueError):
-        return repr(methodproxy._real)
-
     model = methodproxy.model
     name = methodproxy.name
 
     method = methodproxy._real
     decorators = list(_find_decorators(method))
     method = util.unpack_function(method)
+    try:
+        src = sources.find_method_source(methodproxy)
+        signature = _func_signature(method)
+    except (TypeError, ValueError):
+        return repr(methodproxy._real)
 
     docs = _get_method_docs(model, name)
     parts = []
