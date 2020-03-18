@@ -149,8 +149,7 @@ base: /[^\n]*/res_partner.py:\d+$""",
 Authentication via LDAP
 
 Depends: base(, base_setup)?(
-Dependents: users_ldap_.*)?(
-Indirect dependents: .*)?(
+Dependents: .*)?(
 Defines: .*)?
 
 Adds support for authentication by LDAP server.
@@ -165,7 +164,6 @@ Installed
 Base
 
 Dependents: [^\n]*
-Indirect dependents: [^\n]*
 Defines: [^\n]*, res.users, """,
         )
 

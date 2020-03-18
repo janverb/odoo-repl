@@ -213,6 +213,8 @@ def field_repr(field, env=None):
 
 def _find_field_attrs(field):
     # type: (Field) -> t.List[str]
+    # TODO: required can be a callable, others perhaps too
+    # Maybe check for a callable/string and add a question mark if so?
     return [
         attr
         for attr in (

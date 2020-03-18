@@ -107,22 +107,41 @@ class Addon(object):
         subprocess.Popen(argv).wait()
 
     def _get_depends(self):
-        # type: () -> odoo.models.IrModuleModule
-        return (
+        # type: () -> t.Tuple[odoo.models.IrModuleModule, odoo.models.IrModuleModule]
+        direct = (
             self._env["ir.module.module.dependency"]
             .search([("module_id", "=", self.record.id)])
             .mapped("depend_id")
         )
-
-    def _get_rdepends(self):
-        # type: () -> t.Tuple[odoo.models.IrModuleModule, odoo.models.IrModuleModule]
-        dependency = self._env["ir.module.module.dependency"]
-        direct = dependency.search([("name", "=", self._module)]).mapped("module_id")
         indirect = self._env["ir.module.module"]
         latest = direct
         while latest:
-            new = dependency.search([("name", "in", latest.mapped("name"))]).mapped(
-                "module_id"
+            new = (
+                self._env["ir.module.module.dependency"]
+                .search([("module_id", "in", latest.ids)])
+                .mapped("depend_id")
+            )
+            new -= direct
+            new -= indirect
+            indirect |= latest
+            latest = new
+        indirect -= direct
+        return direct, indirect
+
+    def _get_rdepends(self):
+        # type: () -> t.Tuple[odoo.models.IrModuleModule, odoo.models.IrModuleModule]
+        direct = (
+            self._env["ir.module.module.dependency"]
+            .search([("name", "=", self._module)])
+            .mapped("module_id")
+        )
+        indirect = self._env["ir.module.module"]
+        latest = direct
+        while latest:
+            new = (
+                self._env["ir.module.module.dependency"]
+                .search([("name", "in", latest.mapped("name"))])
+                .mapped("module_id")
             )
             new -= direct
             new -= indirect
@@ -170,8 +189,6 @@ class Addon(object):
         else:
             author = util.stringify_text(", ".join(self.manifest.author))
 
-        direct, indirect = self._get_rdepends()
-
         parts = []
         parts.append(
             "{} {} by {}".format(
@@ -182,18 +199,21 @@ class Addon(object):
         parts.append(state)
         parts.append(color.display_name(util.stringify_text(self.manifest.name)))
         parts.append(self.manifest.summary)
-        if self.manifest.depends:
-            parts.append(
-                "Depends: {}".format(
-                    ", ".join(map(color.module, self.manifest.depends))
-                )
-            )
-        if direct:
-            parts.append("Dependents: {}".format(", ".join(map(_color_state, direct))))
-        if indirect:
-            parts.append(
-                "Indirect dependents: {}".format(", ".join(map(_color_state, indirect)))
-            )
+
+        def format_depends(pretext, modules):
+            # type: (t.Text, odoo.models.IrModuleModule) -> None
+            if modules:
+                names = map(_color_state, sorted(modules, key=lambda mod: mod.name))
+                parts.append("{}: {}".format(pretext, ", ".join(names)))
+
+        # TODO: Indirect dependencies are a bit noisy, when/how do we show them?
+        direct, _indirect = self._get_depends()
+        format_depends("Depends", direct)
+        # format_depends("Indirectly depends", indirect)
+        r_direct, _r_indirect = self._get_rdepends()
+        format_depends("Dependents", r_direct)
+        # format_depends("Indirect dependents", r_indirect)
+
         if defined_models:
             parts.append(
                 "Defines: {}".format(", ".join(map(color.model, defined_models)))
