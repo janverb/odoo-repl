@@ -9,6 +9,7 @@ from mypy import types
 
 from mypy.nodes import StrExpr, UnicodeExpr, ARG_POS
 from mypy.plugin import (
+    ClassDefContext,
     FunctionContext,
     MethodContext,
     MethodSigContext,
@@ -60,6 +61,13 @@ class OdooPlugin(Plugin):
     ) -> t.Optional[t.Callable[[FunctionContext], Type]]:
         if fullname.startswith("odoo.fields."):
             return newfield_hook
+        return None
+
+    def get_base_class_hook(
+        self, fullname: str
+    ) -> t.Optional[t.Callable[[ClassDefContext], None]]:
+        if fullname == "odoo.models.BaseModel":
+            return newmodel_hook
         return None
 
 
@@ -165,6 +173,29 @@ def newfield_hook(ctx: FunctionContext) -> Type:
         bool_type = ctx.api.named_type("bool")  # type: ignore
         required = LiteralType(False, bool_type)
     return ctx.default_return_type.copy_modified(args=[required])
+
+
+def newmodel_hook(ctx: ClassDefContext) -> None:
+    """Add a literal type for _name.
+
+    This makes tagged unions possible. If we have Union[ResUsers, ResPartner]
+    then mypy understands that `if x._name == "res.users":` means that x is
+    ResUsers.
+
+    Unfortunately it doesn't work for narrowing down BaseModel, so it's only
+    rarely useful. A workaround could be to automatically define a union of all
+    defined models.
+    """
+    dotted_name = []  # type: t.List[str]
+    for char in ctx.cls.name:
+        if dotted_name and char.isupper():
+            dotted_name.append(".")
+        dotted_name.append(char.lower())
+    name_type = types.LiteralType("".join(dotted_name), ctx.api.named_type("str"))
+    var = nodes.Var("_name", name_type)
+    var.info = ctx.cls.info
+    stn = nodes.SymbolTableNode(nodes.MDEF, var)
+    ctx.cls.info.names["_name"] = stn
 
 
 def _build_vals_dict(
