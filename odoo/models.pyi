@@ -208,6 +208,9 @@ class IrActionsReportXml(BaseModel): ...
 
 class IrActionsAct_window(BaseModel):
     res_model = fields.Char(required=True)
+    binding_model_id: IrModel  # Odoo 13+
+    src_model = fields.Char()  # Odoo <=12
+    name = fields.Char(required=True)
 
 class IrActionsAct_url(BaseModel): ...
 class IrActionsServer(BaseModel): ...

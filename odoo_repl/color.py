@@ -55,7 +55,7 @@ missing = red.bold
 boolean = green.bold
 
 menu_lead = blue.bold
-menu_end = cyan.bold
+menu = purple.bold
 
 field_colors = {
     "char": blue.bold,

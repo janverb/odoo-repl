@@ -312,7 +312,7 @@ Written on 20..-..-.. ..:..:.. by u.demo
 
             def _target_write(text):
                 if isinstance(text, str):
-                    text = text.decode()
+                    text = text.decode("utf8")
                 return type(target).write(target, text)
 
             target.write = _target_write  # type: ignore

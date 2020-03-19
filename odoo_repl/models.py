@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import print_function
 
 import collections
@@ -521,18 +522,39 @@ class ModelProxy(object):
             for end, action in grouped[lead]:
                 if first:
                     print(
-                        color.menu_lead("/".join(lead) + "/") + color.menu_end(end),
-                        end="",
+                        color.menu_lead("/".join(lead) + "/") + color.menu(end), end="",
                     )
                     first = False
                 else:
-                    print(lead_len * " " + color.menu_end(end), end="")
+                    print(lead_len * " " + color.menu(end), end="")
                 affix = color.make_affix(action)
                 if affix is not None:
                     print(" ({})".format(affix))
                 else:
                     print()
             print()
+
+        def get_binding_model(action):
+            # type: (odoo.models.IrActionsAct_window) -> t.Optional[t.Text]
+            if odoo.release.version_info >= (13, 0):
+                if action.binding_model_id:
+                    return action.binding_model_id.model
+                return None
+            if action.src_model:
+                # May be the empty string, we turn that into None too
+                return action.src_model
+            return None
+
+        for action in self._env["ir.actions.act_window"].search(
+            [("res_model", "=", self._real._name)]
+        ):
+            src_model = get_binding_model(action)
+            if src_model:
+                msg = "{} → {}".format(color.model(src_model), color.menu(action.name))
+                affix = color.make_affix(action)
+                if affix is not None:
+                    msg += " ({})".format(affix)
+                print(msg, end="\n\n")
 
     def _(self, *args, **kwargs):
         # type: (t.Any, t.Any) -> t.Any
