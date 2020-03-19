@@ -16,6 +16,7 @@ def fzf(vals):
     proc.stdin.close()
     return_code = proc.wait()
     if return_code != 0:
+        # A noisy traceback isn't appropriate here
         return None
     return proc.stdout.read().decode("utf8").strip("\0").split("\0")
 

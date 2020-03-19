@@ -297,6 +297,13 @@ Written on 20..-..-.. ..:..:.. by u.demo
             for model in self.ns["env"]:
                 model.rules_()
 
+    def test_print_all_menus(self):
+        if not config.slow_tests:
+            self.skipTest("Slow tests disabled")
+        with self.capture_stdout():
+            for model in self.ns["env"]:
+                model.menus_()
+
     @contextmanager
     def capture_stdout(self):
         # type: () -> t.Iterator[io.StringIO]

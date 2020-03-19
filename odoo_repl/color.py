@@ -54,6 +54,9 @@ number = purple.bold
 missing = red.bold
 boolean = green.bold
 
+menu_lead = blue.bold
+menu_end = cyan.bold
+
 field_colors = {
     "char": blue.bold,
     "text": blue.bold,
@@ -87,6 +90,26 @@ def render_user(obj):
     )
 
 
+def make_affix(obj):
+    # type: (BaseModel) -> t.Optional[t.Text]
+    affix = None
+    xml_ids = util.xml_ids(obj)
+    if xml_ids:
+        return xml_ids[0].to_ref()
+    try:
+        name = obj.display_name
+        default_name = "{},{}".format(obj._name, obj.id)
+        if name and name != default_name:
+            affix = repr(name)
+            if affix.startswith("u"):
+                # Unicode string literal, distracting
+                affix = affix[1:]
+            return affix
+    except Exception:
+        pass
+    return None
+
+
 def _render_record(obj):
     # type: (BaseModel) -> t.Text
     # TODO: It might be nice to color inactive records with missing.
@@ -114,21 +137,7 @@ def _render_record(obj):
     except Exception:
         pass
     if len(obj._ids) == 1:
-        affix = None
-        xml_ids = util.xml_ids(obj)
-        if xml_ids:
-            affix = xml_ids[0].to_ref()
-        else:
-            try:
-                name = obj.display_name
-                default_name = "{},{}".format(obj._name, obj.id)
-                if name and name != default_name:
-                    affix = repr(name)
-                    if affix.startswith("u"):
-                        # Unicode string literal, distracting
-                        affix = affix[1:]
-            except Exception:
-                pass
+        affix = make_affix(obj)
         if affix is not None:
             return record("{}[{}]".format(obj._name, obj.id)) + " ({})".format(affix)
     return record("{}[{}]".format(obj._name, odoo_repl._ids_repr(obj._ids)))

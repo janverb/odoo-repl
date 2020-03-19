@@ -193,6 +193,7 @@ class ModelProxy(object):
             "grep_",
             "_",
             "methods_",
+            "menus_",
             "mapped",
             "filtered",
             "get_xml_id",
@@ -469,6 +470,45 @@ class ModelProxy(object):
                         color.method(name)
                         + methods._func_signature(util.unpack_function(meth))
                     )
+
+    def menus_(self):
+        # type: () -> None
+        """List menus that point to the model."""
+        assert self._real is not None
+
+        # TODO: Is checking ir.actions.act_window records enough?
+
+        menus = sorted(
+            (tuple(menu.complete_name.split("/")), menu.action)
+            for menu in self._env["ir.ui.menu"].search([])
+            if menu.action
+            if menu.action._name == "ir.actions.act_window"
+            if self._real._name == menu.action.res_model
+        )
+
+        grouped = collections.defaultdict(list)
+        for path, action in menus:
+            if path:
+                grouped[path[:-1]].append((path[-1], action))
+
+        for lead in sorted(grouped):
+            first = True
+            lead_len = sum(map(len, lead)) + len(lead)
+            for end, action in grouped[lead]:
+                if first:
+                    print(
+                        color.menu_lead("/".join(lead) + "/") + color.menu_end(end),
+                        end="",
+                    )
+                    first = False
+                else:
+                    print(lead_len * " " + color.menu_end(end), end="")
+                affix = color.make_affix(action)
+                if affix is not None:
+                    print(" ({})".format(affix))
+                else:
+                    print()
+            print()
 
     def _(self, *args, **kwargs):
         # type: (t.Any, t.Any) -> t.Any

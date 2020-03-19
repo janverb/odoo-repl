@@ -181,6 +181,35 @@ class IrUiView(BaseModel):
     @overload  # >= 10
     def read_combined(self) -> _FieldView: ...
 
+class IrUiMenu(BaseModel):
+    # The exact union depends on the version
+    # This is the sum of the unions in Odoo 8 and 12
+    # Odoo 8 claims ir.actions.wizard is also possible but that model
+    # doesn't actually exist in that version
+    action: Union[
+        Literal[False],
+        IrActionsReport,
+        IrActionsReportXml,
+        IrActionsAct_window,
+        IrActionsAct_url,
+        IrActionsServer,
+        IrActionsClient,
+    ]
+    complete_name = fields.Char(required=True)
+    name = fields.Char(required=True)
+    child_id: IrUiMenu
+    parent_id: IrUiMenu
+
+class IrActionsReport(BaseModel): ...
+class IrActionsReportXml(BaseModel): ...
+
+class IrActionsAct_window(BaseModel):
+    res_model = fields.Char(required=True)
+
+class IrActionsAct_url(BaseModel): ...
+class IrActionsServer(BaseModel): ...
+class IrActionsClient(BaseModel): ...
+
 class ResGroups(BaseModel):
     name = fields.Char(required=True)
 
