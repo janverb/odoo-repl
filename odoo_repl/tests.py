@@ -239,7 +239,7 @@ Written on 20..-..-.. ..:..:.. by u.demo
         for model in self.ns["env"]:
             self.assertIsInstance(model, odoo_repl.models.ModelProxy)
             self.assertTrue(odoo_repl.odoo_repr(model))
-            for field in model:
+            for field in model.fields_:
                 self.assertIsInstance(field, odoo_repl.fields.FieldProxy)
                 self.assertTrue(odoo_repl.odoo_repr(field))
             for attr_name in dir(model._real):

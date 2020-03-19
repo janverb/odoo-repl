@@ -182,8 +182,8 @@ class ModelProxy(object):
 
     def __dir__(self):
         # type: () -> t.List[t.Text]
-        # Methods that should be excluded when we're not proxying a real model
-        real_methods = {
+        # Attributes that should be excluded when we're not proxying a real model
+        real_attrs = {
             "shuf_",
             "mod_",
             "source_",
@@ -199,11 +199,12 @@ class ModelProxy(object):
             "get_xml_id",
             "filtered_",
             "_all_ids_",
+            "fields_",
         }  # type: t.Set[t.Text]
         if PY3:
             listing = set(super().__dir__())
         else:
-            listing = real_methods.copy()
+            listing = real_attrs.copy()
         if self._real is not None:
             listing.update(
                 attr for attr in dir(self._real) if not attr.startswith("__")
@@ -212,7 +213,7 @@ class ModelProxy(object):
             # bogus attribute that's annoying for tab completion
             listing -= {"<lambda>"}
         else:
-            listing -= real_methods
+            listing -= real_attrs
         # This can include entries that contain periods.
         # Both the default completer and IPython handle that well.
         listing.update(
@@ -223,10 +224,18 @@ class ModelProxy(object):
         return sorted(listing)
 
     def __iter__(self):
-        # type: () -> t.Iterator[fields.FieldProxy]
+        # type: () -> t.Iterator[BaseModel]
         assert self._real is not None
-        for field in sorted(self._real._fields.values(), key=lambda f: f.name):
-            yield fields.FieldProxy(self._env, field)
+        return iter(self._real.search([]))
+
+    @property
+    def fields_(self):
+        # type: () -> t.List[fields.FieldProxy]
+        assert self._real is not None
+        return [
+            fields.FieldProxy(self._env, field)
+            for field in sorted(self._real._fields.values(), key=lambda f: f.name)
+        ]
 
     def __len__(self):
         # type: () -> int
