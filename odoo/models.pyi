@@ -37,6 +37,9 @@ class BaseModel:
     _name: Text
     _description: Text
     _auto: bool
+    _register: bool
+    _abstract: bool  # Not all versions
+    _transient: bool
     _defaults: Dict[Text, object]
     _constraint_methods: List[_Constrainer]
     # Actually a defaultdict but let's not rely on that

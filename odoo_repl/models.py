@@ -48,6 +48,12 @@ def model_repr(obj):
     parts = []
 
     parts.append(color.header(obj._name))
+    if obj._transient:
+        parts[-1] += " (transient)"
+    if getattr(obj, "_abstract", False):
+        parts[-1] += " (abstract)"
+    elif not obj._auto:
+        parts[-1] += " (no automatic table)"
     if getattr(obj, "_description", False) and obj._description != obj._name:
         parts.append(color.display_name(obj._description))
     if getattr(obj, "_inherits", False):
