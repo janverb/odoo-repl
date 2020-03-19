@@ -35,6 +35,7 @@ class Field(Generic[T, Required]):
     store: bool
     column: Any
     default: object
+    required: Required
     help: Optional[Text]
     related: Optional[Sequence[Text]]
     inverse_fields: Sequence[Field[Any, Any]]  # Only in older versions

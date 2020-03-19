@@ -118,10 +118,19 @@ def model_repr(obj):
 
 def _fmt_properties(field):
     # type: (Field) -> t.Text
-    return "".join(
-        attr[0] if getattr(field, attr, False) else " "
-        for attr in ["required", "store", "default"]
-    ) + ("c" if _has_computer(field) else " ")
+    parts = [" ", " ", " ", " "]
+    if field.required:
+        if field.default:
+            parts[0] = "r"
+        else:
+            parts[0] = "R"
+    if field.store:
+        parts[1] = "s"
+    if field.default:
+        parts[2] = "d"
+    if _has_computer(field):
+        parts[3] = "c"
+    return "".join(parts)
 
 
 def _has_computer(field):

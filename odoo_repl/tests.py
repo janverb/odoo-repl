@@ -76,7 +76,7 @@ class TestOdooRepl(TestCase):
         self.assertRegex(rep, r"^res.users\nUsers\n")
         self.assertRegex(rep, r"\nInherits from res.partner through partner_id\n")
         self.assertRegex(rep, r"\nrsd  company_id:\s*many2one: res.company \(Company\)")
-        self.assertRegex(rep, r"\nrs   login:\s*char \(Login\)\n")
+        self.assertRegex(rep, r"\nRs   login:\s*char \(Login\)\n")
         self.assertRegex(rep, r"\nDelegated to partner_id: \w+")
         self.assertRegex(rep, r"\nbase: /[^\n]*/res_users.py:\d+")
 
