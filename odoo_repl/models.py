@@ -393,8 +393,8 @@ class ModelProxy(object):
     def view_(
         self,
         view_type="form",  # type: t.Text
-        user=None,  # type: t.Optional[t.Union[t.Text, int, odoo.models.ResUsers]]
-        view_id=None,  # type: t.Optional[t.Union[t.Text, odoo.models.IrUiView, int]]
+        user=None,  # type: t.Union[None, t.Text, int, odoo.models.ResUsers]
+        view_id=None,  # type: t.Union[None, t.Text, odoo.models.IrUiView, int]
     ):
         # type: (...) -> None
         """Build up and print a view."""

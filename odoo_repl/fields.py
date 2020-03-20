@@ -281,7 +281,6 @@ def _find_field_delegated(field):
 
 def _find_field_default(field, model):
     # type: (Field, BaseModel) -> object
-    # TODO: was the commented out code useful?
     default = field.default
     if (
         getattr(default, "__module__", None)

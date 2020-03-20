@@ -14,7 +14,6 @@ from odoo_repl.imports import t
 
 def main(argv=sys.argv[1:]):
     # type: (t.Sequence[str]) -> int
-    # TODO: flags for disabling features
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d", "--database", type=str, default=None, help="Database name"

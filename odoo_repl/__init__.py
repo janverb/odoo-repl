@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 # TODO:
-# - FieldProxy to be able to follow e.g. res.users.log_ids.create_date
-# - group by implementing module in model_repr
 # - .write_()
 # - rename without "odoo" (trademark? CONTRIBUTING.rst#821naming)
 # - don't treat mixins as base

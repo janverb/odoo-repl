@@ -92,8 +92,6 @@ class OPdb(pdb.Pdb, object):
 
     def _setup_framelocals(self):
         # type: () -> None
-        # TODO: this only works in py2 because unittest2 adds ChainMap
-        # stop depending on ChainMap? Use own implementation?
         if not isinstance(self.curframe_locals, _ChainMap):
             self._real_curframe_locals = self.curframe_locals
             self.curframe_locals = _ChainMap(self.curframe_locals, self.repl_namespace)
