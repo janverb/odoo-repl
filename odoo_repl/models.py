@@ -550,7 +550,7 @@ class ModelProxy(object):
         ):
             src_model = get_binding_model(action)
             if src_model:
-                msg = "{} → {}".format(color.model(src_model), color.menu(action.name))
+                msg = u"{} → {}".format(color.model(src_model), color.menu(action.name))
                 affix = color.make_affix(action)
                 if affix is not None:
                     msg += " ({})".format(affix)
