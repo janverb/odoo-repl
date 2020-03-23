@@ -59,6 +59,12 @@ class OdooPlugin(Plugin):
     def get_function_hook(
         self, fullname: str
     ) -> t.Optional[t.Callable[[FunctionContext], Type]]:
+        if fullname in {
+            "odoo.fields.Many2one",
+            "odoo.fields.One2many",
+            "odoo.fields.Many2many",
+        }:
+            return newrelationalfield_hook
         if fullname.startswith("odoo.fields."):
             return newfield_hook
         return None
@@ -127,12 +133,15 @@ def envget_hook(ctx: MethodContext) -> Type:
     arg = ctx.args[0][0]
     if not isinstance(arg, (StrExpr, UnicodeExpr)):
         return ctx.default_return_type
-    model = arg.value
-    clsname = "".join(part.capitalize() for part in model.split("."))
+    return get_model_by_name(arg.value, ctx)
+
+
+def get_model_by_name(name: str, ctx: t.Union[MethodContext, FunctionContext]) -> Type:
+    clsname = "".join(part.capitalize() for part in name.split("."))
     try:
         return ctx.api.named_type("odoo.models." + clsname)  # type: ignore
     except KeyError:
-        ctx.api.fail("Unknown model {!r}".format(model), ctx.context)
+        ctx.api.fail("Unknown model {!r}".format(name), ctx.context)
         return AnyType(TypeOfAny.from_error)
 
 
@@ -173,6 +182,17 @@ def newfield_hook(ctx: FunctionContext) -> Type:
         bool_type = ctx.api.named_type("bool")  # type: ignore
         required = LiteralType(False, bool_type)
     return ctx.default_return_type.copy_modified(args=[required])
+
+
+def newrelationalfield_hook(ctx: FunctionContext) -> Type:
+    if not isinstance(ctx.default_return_type, Instance):
+        return ctx.default_return_type
+    if ctx.args and ctx.args[0] and isinstance(ctx.args[0][0], StrExpr):
+        model = get_model_by_name(ctx.args[0][0].value, ctx)
+    else:
+        ctx.api.fail("Can't decipher comodel name", ctx.context)
+        return ctx.default_return_type
+    return ctx.default_return_type.copy_modified(args=[model])
 
 
 def newmodel_hook(ctx: ClassDefContext) -> None:

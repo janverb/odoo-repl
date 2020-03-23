@@ -53,11 +53,11 @@ class BaseModel:
     ids: List[int]
     @property
     def id(self: AnyModel) -> _RecordId[AnyModel]: ...
-    display_name: Text
+    display_name = fields.Char(required=True)
     create_date = fields.Datetime()
-    create_uid: ResUsers
+    create_uid = fields.Many2one("res.users")
     write_date = fields.Datetime()
-    write_uid: ResUsers
+    write_uid = fields.Many2one("res.users")
     # .browse(<NewId>) returns an empty record, .browse([<NewId>]) works
     def browse(self: AnyModel, ids: Union[int, Iterable[_Id]] = ...) -> AnyModel: ...
     def exists(self: AnyModel) -> AnyModel: ...
@@ -124,7 +124,7 @@ class _FieldView(TypedDict):
 # These don't actually live in odoo.models
 class IrModelAccess(BaseModel):
     active = fields.Boolean()
-    group_id: ResGroups
+    group_id = fields.Many2one("res.groups")
     perm_read = fields.Boolean()
     perm_write = fields.Boolean()
     perm_create = fields.Boolean()
@@ -132,7 +132,7 @@ class IrModelAccess(BaseModel):
 
 class IrRule(BaseModel):
     active = fields.Boolean()
-    groups: ResGroups
+    groups = fields.Many2many("res.groups")
     domain_force = fields.Char()
     perm_read = fields.Boolean()
     perm_write = fields.Boolean()
@@ -169,9 +169,9 @@ class IrModuleModule(BaseModel):
     installed_version = fields.Char(required=True)  # computed
 
 class IrModuleModuleDependency(BaseModel):
-    module_id: IrModuleModule
+    module_id = fields.Many2one("ir.module.module")
     name = fields.Char()
-    depend_id: IrModuleModule
+    depend_id = fields.Many2one("ir.module.module")
 
 class IrTranslation(BaseModel):
     src = fields.Char()
@@ -189,6 +189,7 @@ class IrUiMenu(BaseModel):
     # This is the sum of the unions in Odoo 8 and 12
     # Odoo 8 claims ir.actions.wizard is also possible but that model
     # doesn't actually exist in that version
+    # TODO: use a real field here
     action: Union[
         Literal[False],
         IrActionsReport,
@@ -200,15 +201,15 @@ class IrUiMenu(BaseModel):
     ]
     complete_name = fields.Char(required=True)
     name = fields.Char(required=True)
-    child_id: IrUiMenu
-    parent_id: IrUiMenu
+    child_id = fields.One2many("ir.ui.menu")
+    parent_id = fields.Many2one("ir.ui.menu")
 
 class IrActionsReport(BaseModel): ...
 class IrActionsReportXml(BaseModel): ...
 
 class IrActionsAct_window(BaseModel):
     res_model = fields.Char(required=True)
-    binding_model_id: IrModel  # Odoo 13+
+    binding_model_id = fields.Many2one("ir.model")  # Odoo 13+
     src_model = fields.Char()  # Odoo <=12
     name = fields.Char(required=True)
 
@@ -222,13 +223,13 @@ class ResGroups(BaseModel):
 class ResUsers(BaseModel):
     login = fields.Char(required=True)
     active = fields.Boolean()
-    employee_ids: HrEmployee
-    partner_id: ResPartner
+    employee_ids = fields.One2many("hr.employee")
+    partner_id = fields.Many2one("res.partner", required=True)
     def has_group(self, group_ext_id: Text) -> bool: ...
 
 class ResPartner(BaseModel):
     pass
 
 class HrEmployee(BaseModel):
-    user_id: ResUsers
+    user_id = fields.Many2one("res.users")
     active = fields.Boolean()
