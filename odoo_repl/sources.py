@@ -36,7 +36,6 @@ RE_FIELD = re.compile(
 RECORD_TAGS = [
     "record",
     "delete",
-    "function",
     "menuitem",
     "template",
     "workflow",
