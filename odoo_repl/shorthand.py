@@ -1,5 +1,6 @@
 """Various helpers for accessing records with shorthand notation."""
 
+from odoo_repl import fzf
 from odoo_repl import util
 from odoo_repl.imports import odoo, t, PY3, BaseModel
 
@@ -50,12 +51,25 @@ class RecordBrowser(object):
         # type: () -> t.List[t.Text]
         if self._model not in self._env.registry:
             raise TypeError("Model '{}' is not installed".format(self._model))
-        return [u"_model", u"_field", u"_listing", u"_abbrev"] + util.sql(
-            self._env, self._listing
-        )
+        listing = [u"_model", u"_field", u"_listing", u"_abbrev", u"fzf_"]
+        listing.extend(filter(util.is_name, util.sql(self._env, self._listing)))
+        return listing
 
-    __getitem__ = __getattr__
-    _ipython_key_completions_ = __dir__
+    def _ipython_key_completions_(self):
+        # type: () -> t.List[t.Text]
+        if self._model not in self._env.registry:
+            raise TypeError("Model '{}' is not installed".format(self._model))
+        return util.sql(self._env, self._listing)
+
+    def __getitem__(self, key):
+        # type: (t.Union[int, t.Text]) -> BaseModel
+        if isinstance(key, int):
+            return self._env[self._model].browse(key)
+        else:
+            try:
+                return self.__getattr__(key)
+            except AttributeError as e:
+                raise KeyError(*e.args)
 
     @classmethod
     def _repr_for_value(cls, ident):
@@ -88,6 +102,11 @@ class UserBrowser(RecordBrowser):
     _field = "login"
     _listing = "SELECT login FROM res_users"
     _abbrev = "u"
+
+    def fzf_(self):
+        # type: () -> t.Optional[BaseModel]
+        # TODO: when fzf works with dotted fields, move to RecordBrowser
+        return fzf.fzf_field(self._env[self._model], self._field)
 
 
 class EmployeeBrowser(RecordBrowser):
