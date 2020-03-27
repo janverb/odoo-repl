@@ -49,6 +49,12 @@ def main(argv=sys.argv[1:]):
         "--run-tests", action="store_true", help="Run tests, then exit",
     )
     parser.add_argument(
+        "-s",
+        "--with-server",
+        action="store_true",
+        help="Run the web server in the background",
+    )
+    parser.add_argument(
         "directory", type=str, default=".", nargs="?", help="Buildout directory to use"
     )
     parser.add_argument(
@@ -125,6 +131,13 @@ sys.exit(1 if result.errors or result.failures else 0)
 """.format(
             database=args.database
         )
+
+    if args.with_server:
+        cmd += """server = odoo.service.server.ThreadedServer(
+    odoo.service.wsgi_server.application
+)
+server.start()
+"""
 
     # python_odoo has a -i flag for an interactive mode, but that's not great
     # It doesn't enable Python 3's readline enhancements, for example
