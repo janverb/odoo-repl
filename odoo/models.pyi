@@ -176,6 +176,10 @@ class IrModuleModuleDependency(BaseModel):
 class IrTranslation(BaseModel):
     src = fields.Char()
     value = fields.Char()
+    name = fields.Char(required=True)
+    # actually selection
+    # not technically required but always present in practice
+    type = fields.Char(required=True)
 
 class IrUiView(BaseModel):
     type = fields.Char(required=True)  # actually selection
