@@ -127,7 +127,11 @@ def find_record_source(record):
     return [
         Source(defin.module, defin.fname, defin.elem.sourceline)
         for rec in record
-        for rec_id in util.xml_ids(rec)
+        # We want the "oldest" sources at the end, to match finders
+        # that go by MRO.
+        # So we reverse xml_ids, because that one puts inheriting views
+        # (newer) at the end.
+        for rec_id in reversed(util.xml_ids(rec))
         for defin in xml_records[rec_id]
     ]
 

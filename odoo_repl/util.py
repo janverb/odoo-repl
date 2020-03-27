@@ -10,7 +10,7 @@ import string
 
 import odoo_repl
 
-from odoo_repl.imports import t, overload, odoo, MYPY, Field, PY3, BaseModel
+from odoo_repl.imports import t, overload, odoo, MYPY, Field, PY3, BaseModel, cast
 
 
 # Globally accessible environment. Use sparingly.
@@ -63,15 +63,26 @@ def xml_ids(obj):
 
     .get_external_id() returns at most one result per record.
     """
-    return [
+    ids = [
         XmlId(data_record.module, data_record.name)
         for data_record in (
             obj.env["ir.model.data"]
             .sudo()
-            .search([("model", "=", obj._name), ("res_id", "=", obj.id)])
+            .search([("model", "=", obj._name), ("res_id", "in", obj.ids)])
         )
         if data_record.module != "__export__"
     ]
+    # Note: checking that obj is not empty prevents infinite recursion
+    # It's not a silly optimization
+    if obj and obj._name == "ir.ui.view":
+        obj = cast("odoo.models.IrUiView", obj)
+        # find_record_source uses xml_ids, so adding these here means they're
+        # available downstream in record_repr, .source_(), .edit_(), etc.
+        heirs = obj.mapped("inherit_children_ids").filtered(
+            lambda view: view.mode == "extension"
+        )
+        ids.extend(xml_ids(heirs))
+    return ids
 
 
 def unpack_function(func):

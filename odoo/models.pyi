@@ -183,6 +183,9 @@ class IrTranslation(BaseModel):
 
 class IrUiView(BaseModel):
     type = fields.Char(required=True)  # actually selection
+    mode = fields.Char(required=True)  # actually selection
+    inherit_id = fields.Many2one("ir.ui.view")
+    inherit_children_ids = fields.One2many("ir.ui.view")
     def default_view(self, model: Text, view_type: Text) -> int: ...
     @overload  # < 10
     def read_combined(self, view_id: int) -> _FieldView: ...
