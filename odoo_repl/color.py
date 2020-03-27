@@ -110,7 +110,7 @@ def make_affix(obj):
     return None
 
 
-def _render_record(obj):
+def render_record(obj):
     # type: (BaseModel) -> t.Text
     # TODO: It might be nice to color inactive records with missing.
     # But what about multi-records?
@@ -153,7 +153,7 @@ def color_value(obj, field_type):
         # default value, so red values always mean "missing"
         return boolean(repr(obj))
     elif isinstance(obj, BaseModel):
-        return _render_record(obj)
+        return render_record(obj)
     elif isinstance(obj, TextLike):
         rep = repr(obj)  # type: t.Text
         if len(rep) > 120:

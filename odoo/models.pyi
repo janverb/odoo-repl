@@ -178,6 +178,7 @@ class IrTranslation(BaseModel):
     value = fields.Char()
 
 class IrUiView(BaseModel):
+    type = fields.Char(required=True)  # actually selection
     def default_view(self, model: Text, view_type: Text) -> int: ...
     @overload  # < 10
     def read_combined(self, view_id: int) -> _FieldView: ...
@@ -212,6 +213,11 @@ class IrActionsAct_window(BaseModel):
     binding_model_id = fields.Many2one("ir.model")  # Odoo 13+
     src_model = fields.Char()  # Odoo <=12
     name = fields.Char(required=True)
+    view_id = fields.Many2one("ir.ui.view")
+    views: List[Tuple[int, Text]]
+    def default_view(
+        self, model: Text, view_type: Text
+    ) -> Union[Literal[False], int]: ...
 
 class IrActionsAct_url(BaseModel): ...
 class IrActionsServer(BaseModel): ...

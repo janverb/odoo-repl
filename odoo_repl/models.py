@@ -508,30 +508,41 @@ class ModelProxy(object):
             for menu in self._env["ir.ui.menu"].search([])
             if menu.action
             if menu.action._name == "ir.actions.act_window"
-            if self._real._name == menu.action.res_model
+            if menu.action.res_model == self._real._name
         )
 
-        grouped = collections.defaultdict(list)
-        for path, action in menus:
-            if path:
-                grouped[path[:-1]].append((path[-1], action))
-
-        for lead in sorted(grouped):
-            first = True
-            lead_len = sum(map(len, lead)) + len(lead)
-            for end, action in grouped[lead]:
-                if first:
-                    print(
-                        color.menu_lead("/".join(lead) + "/") + color.menu(end), end="",
+        def print_act(action):
+            # type: (odoo.models.IrActionsAct_window) -> None
+            views = action.view_id
+            unknown = []
+            for view_id, view_type in action.views:
+                if not view_id:
+                    view_id = self._env["ir.ui.view"].default_view(
+                        action.res_model, view_type
                     )
-                    first = False
+                if view_id:
+                    views |= self._env["ir.ui.view"].browse(view_id)
                 else:
-                    print(lead_len * " " + color.menu(end), end="")
-                affix = color.make_affix(action)
-                if affix is not None:
-                    print(" ({})".format(affix))
-                else:
-                    print()
+                    unknown.append(view_type)
+
+            to_show = [
+                (color.string(view.type), color.render_record(view)) for view in views
+            ]
+            to_show.extend(
+                (color.string(view_type), color.missing("???")) for view_type in unknown
+            )
+            for view_type, view_rep in to_show:
+                print("    {}: {}".format(view_type, view_rep))
+
+        for path, action in menus:
+            lead = path[:-1]
+            end = path[-1]
+            header = color.menu_lead("/".join(lead) + "/") + color.menu(end)
+            affix = color.make_affix(action)
+            if affix:
+                header += " ({})".format(affix)
+            print(header)
+            print_act(action)
             print()
 
         def get_binding_model(action):
@@ -550,11 +561,15 @@ class ModelProxy(object):
         ):
             src_model = get_binding_model(action)
             if src_model:
-                msg = u"{} → {}".format(color.model(src_model), color.menu(action.name))
+                header = u"{} → {}".format(
+                    color.model(src_model), color.menu(action.name)
+                )
                 affix = color.make_affix(action)
-                if affix is not None:
-                    msg += " ({})".format(affix)
-                print(msg, end="\n\n")
+                if affix:
+                    header += u" ({})".format(affix)
+                print(header)
+                print_act(action)
+                print()
 
     def _(self, *args, **kwargs):
         # type: (t.Any, t.Any) -> t.Any
