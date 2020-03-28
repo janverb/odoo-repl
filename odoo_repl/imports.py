@@ -59,6 +59,12 @@ else:
     from StringIO import StringIO
 
 
+if PY3:
+    from urllib.parse import urlparse
+else:
+    from urlparse import urlparse
+
+
 if MYPY:
     Field = odoo.fields.Field[t.Any, t.Any]
     BaseModel = odoo.models.BaseModel
@@ -77,6 +83,7 @@ __all__ = (
     "MYPY",
     "PY3",
     "abc",
+    "urlparse",
     "odoo",
     "t",
     "cast",

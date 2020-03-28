@@ -8,6 +8,7 @@ import types
 
 from odoo_repl import color
 from odoo_repl import fzf
+from odoo_repl import gitsources
 from odoo_repl import methods
 from odoo_repl import sources
 from odoo_repl import util
@@ -31,7 +32,7 @@ class FieldProxy(object):
         if PY3:
             listing = set(super().__dir__())
         else:
-            listing = {"source_", "fzf_"}
+            listing = {"source_", "gitsource_", "fzf_"}
         listing.update(dir(self._real))
         return sorted(listing)
 
@@ -68,6 +69,10 @@ class FieldProxy(object):
             print(
                 color.highlight(sources.extract_field_source(source.fname, source.lnum))
             )
+
+    def gitsource_(self):
+        # type: () -> None
+        gitsources.gitsource_(self._real)
 
     def fzf_(self):
         # type: () -> t.Optional[BaseModel]

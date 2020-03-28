@@ -6,6 +6,7 @@ import sys
 import odoo_repl
 
 from odoo_repl import color
+from odoo_repl import gitsources
 from odoo_repl import grep
 from odoo_repl import sources
 from odoo_repl import util
@@ -35,7 +36,7 @@ class MethodProxy(object):
         if PY3:
             listing = set(super().__dir__())
         else:
-            listing = {"edit_", "source_", "grep_"}
+            listing = {"edit_", "source_", "gitsource_", "grep_"}
         listing.update(dir(self._real))
         return sorted(listing)
 
@@ -73,6 +74,8 @@ class MethodProxy(object):
                     first = False
                 print(sources.format_source(sources.Source(module, fname, lnum)))
                 print(color.highlight("".join(lines)))
+
+    gitsource_ = gitsources.gitsource_
 
     def grep_(self, *args, **kwargs):
         # type: (object, object) -> None

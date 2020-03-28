@@ -55,14 +55,6 @@ else:
     _Source = collections.namedtuple("Source", ("module", "fname", "lnum"))
 
 
-def getsourcefile(thing):
-    # type: (t.Any) -> t.Text
-    try:
-        return inspect.getsourcefile(thing) or "???"
-    except ValueError:
-        return "???"
-
-
 class Source(_Source):
     __slots__ = ()
 
@@ -74,6 +66,14 @@ class Source(_Source):
             getsourcefile(src_cls),
             inspect.getsourcelines(src_cls)[1],
         )
+
+
+def getsourcefile(thing):
+    # type: (t.Any) -> t.Text
+    try:
+        return inspect.getsourcefile(thing) or "???"
+    except ValueError:
+        return "???"
 
 
 def find_source(thing):
@@ -106,9 +106,9 @@ def format_source(source):
         return "{}: {}".format(color.module(module), fname)
 
 
-def format_sources(sources):
+def format_sources(sourcelist):
     # type: (t.Iterable[Source]) -> t.List[t.Text]
-    return [format_source(source) for source in sources]
+    return [format_source(source) for source in sourcelist]
 
 
 def find_model_source(model):
