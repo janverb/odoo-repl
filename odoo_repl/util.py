@@ -85,6 +85,15 @@ def xml_ids(obj):
     return ids
 
 
+def xml_id_tag(obj):
+    # type: (BaseModel) -> t.Text
+    """Return an affix for an object's XML ID, if it has one."""
+    ids = xml_ids(obj)
+    if ids:
+        return " ({})".format(ids[0].to_ref())
+    return ""
+
+
 def unpack_function(func):
     # type: (t.Any) -> t.Callable[..., t.Any]
     """Remove wrappers to get the real function."""

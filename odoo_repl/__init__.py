@@ -240,14 +240,9 @@ def odoo_print(obj, **kwargs):
         print(odoo_repr(obj), **kwargs)
 
 
-def _xml_id_tag(obj):
-    # type: (BaseModel) -> t.Text
-    return "".join(" ({})".format(xml_id.to_ref()) for xml_id in util.xml_ids(obj))
-
-
 def _record_header(obj):
     # type: (BaseModel) -> t.Text
-    header = color.header("{}[{!r}]".format(obj._name, obj.id)) + _xml_id_tag(obj)
+    header = color.header("{}[{!r}]".format(obj._name, obj.id)) + util.xml_id_tag(obj)
     if obj.env.uid != 1:
         header += " (as {})".format(color.render_user(obj.env.user))
     return header
