@@ -23,6 +23,10 @@ PAT_URL = re.compile(r"\w+://.*")
 
 def git(path, *args):
     # type: (t.Text, t.Text) -> t.Text
+    """Execute a git command in the context of a file.
+
+    path is assumed to be a file, or at least not the repository root itself.
+    """
     argv = ["git", "-C", os.path.dirname(path)]
     argv.extend(args)
     proc = subprocess.Popen(
@@ -47,11 +51,19 @@ def get_config(path, key):
 
 def root(path):
     # type: (t.Text) -> t.Text
+    """Get the root directory of a git repository."""
     return git(path, "rev-parse", "--show-toplevel")
+
+
+def abbreviate(path, commit):
+    # type: (t.Text, t.Text) -> t.Text
+    """Find a suitable short yet unique version of a commit hash."""
+    return git(path, "rev-parse", "--short", commit)
 
 
 def remote_base(path):
     # type: (t.Text) -> t.Text
+    """Get the base HTTPS URL for a repository's origin remote."""
     origin_url = get_config(path, "remote.origin.url")
     if PAT_URL.match(origin_url):
         url = urlparse(origin_url)
@@ -74,6 +86,7 @@ def remote_base(path):
 
 def to_url(path):
     # type: (t.Text) -> t.Text
+    """Turn a file path into a shareable URL."""
     path = os.path.realpath(path)  # For symlinks
     base = remote_base(path)
 
@@ -90,7 +103,7 @@ def to_url(path):
         # The line number is likely to be off
         commit = odoo.release.version
     else:
-        commit = commit[:7]
+        commit = abbreviate(path, commit)
 
     trail = os.path.relpath(path, root(path))
     return "{}/blob/{}/{}".format(base, commit, trail)
