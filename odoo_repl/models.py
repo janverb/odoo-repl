@@ -378,15 +378,15 @@ class ModelProxy(object):
     def rules_(self, user=None):
         # type: (t.Optional[odoo.models.ResUsers]) -> None
         # TODO: is it possible to collapse the rules into a single policy for a user?
-        mod_id = self.mod_().id
+        model_record = self.mod_()
         parts = []  # type: t.List[t.Text]
         parts.extend(
             access.access_repr(acc)
-            for acc in access.access_for_model(self._env, mod_id, user)
+            for acc in access.access_for_model(self._env, model_record, user)
         )
         parts.extend(
             access.rule_repr(rule)
-            for rule in access.rules_for_model(self._env, mod_id, user)
+            for rule in access.rules_for_model(self._env, model_record, user)
         )
         print("\n\n".join(parts))
 
@@ -411,6 +411,7 @@ class ModelProxy(object):
         if isinstance(view_id, BaseModel):
             if view_id._name != "ir.ui.view":
                 raise TypeError("view_id must be ir.ui.view")
+            assert isinstance(view_id.id, int)
             view_id = view_id.id
         if view_id is None:
             view_id = View.default_view(model._name, view_type)

@@ -30,7 +30,7 @@ import odoo_repl
 
 from odoo_repl import config
 from odoo_repl import odoo_repr
-from odoo_repl.imports import t, PY3
+from odoo_repl.imports import t, PY3, cast, odoo  # noqa: F401
 
 
 class TestOdooRepl(TestCase):
@@ -45,6 +45,7 @@ class TestOdooRepl(TestCase):
         self.addons = self.ns["addons"]  # type: odoo_repl.addons.AddonBrowser
         self._captured_stream = None  # type: t.Optional[io.StringIO]
         config.clickable_filenames = False
+        config.clickable_records = False
         config.color = False
 
     def test_basic_record_access(self):
@@ -207,7 +208,9 @@ Written on 20..-..-.. ..:..:.. by u.demo
         )
 
     def test_record_repr_works_if_unprivileged(self):
-        odoo_repr(self.u.admin.sudo(self.ref.base.public_user.id))
+        odoo_repr(
+            self.u.admin.sudo(cast("odoo.models.ResUsers", self.ref.base.public_user))
+        )
 
     def test_source_printing(self):
         with self.capture_stdout():

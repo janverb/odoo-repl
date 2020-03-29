@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
+"""Functionality for special terminal output, as well as general formatting."""
+
 from __future__ import unicode_literals
 
 import textwrap
 
 from datetime import datetime, date
-
-import odoo_repl
 
 from odoo_repl import config
 from odoo_repl import shorthand
@@ -110,6 +110,37 @@ def make_affix(obj):
     return None
 
 
+def basic_render_record(obj):
+    # type: (BaseModel) -> t.Text
+    """Build a model[id] style record representation.
+
+    This doesn't apply coloring but does apply linking if appropriate.
+    """
+    if len(obj._ids) == 1 and isinstance(obj.id, int) and config.clickable_records:
+        return linkify(
+            "{}[{}]".format(obj._name, obj.id), util.generate_url(obj._name, obj.id)
+        )
+
+    fragments = []  # type: t.List[t.Text]
+    news = 0
+    for ident in obj._ids:
+        if isinstance(ident, int):
+            if config.clickable_records:
+                fragments.append(
+                    linkify(str(ident), util.generate_url(obj._name, ident))
+                )
+            else:
+                fragments.append(str(ident))
+        else:
+            news += 1
+    if news:
+        if news == 1:
+            fragments.append("NewId")
+        else:
+            fragments.append("NewId × {}".format(news))
+    return "{}[{}]".format(obj._name, ", ".join(fragments))
+
+
 def render_record(obj):
     # type: (BaseModel) -> t.Text
     # TODO: It might be nice to color inactive records with missing.
@@ -136,11 +167,12 @@ def render_record(obj):
             )
     except Exception:
         pass
+    text = record(basic_render_record(obj))
     if len(obj._ids) == 1:
         affix = make_affix(obj)
         if affix is not None:
-            return record("{}[{}]".format(obj._name, obj.id)) + " ({})".format(affix)
-    return record("{}[{}]".format(obj._name, odoo_repl._ids_repr(obj._ids)))
+            text += " ({})".format(affix)
+    return text
 
 
 def color_value(obj, field_type):

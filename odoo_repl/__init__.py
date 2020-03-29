@@ -242,27 +242,10 @@ def odoo_print(obj, **kwargs):
 
 def _record_header(obj):
     # type: (BaseModel) -> t.Text
-    header = color.header("{}[{!r}]".format(obj._name, obj.id)) + util.xml_id_tag(obj)
+    header = color.header(color.basic_render_record(obj)) + util.xml_id_tag(obj)
     if obj.env.uid != 1:
         header += " (as {})".format(color.render_user(obj.env.user))
     return header
-
-
-def _ids_repr(idlist):
-    # type: (t.Iterable[object]) -> t.Text
-    fragments = []  # type: t.List[t.Text]
-    news = 0
-    for ident in idlist:
-        if isinstance(ident, int):
-            fragments.append(str(ident))
-        else:
-            news += 1
-    if news:
-        if news == 1:
-            fragments.append("NewId")
-        else:
-            fragments.append(u"NewId × {}".format(news))
-    return ", ".join(fragments)
 
 
 def record_repr(obj):
@@ -275,10 +258,10 @@ def record_repr(obj):
     elif not obj:
         return u"{}[]".format(obj._name)
     elif len(obj) > 1:
-        return u"{}[{}]".format(obj._name, _ids_repr(obj._ids))
+        return color.basic_render_record(obj)
 
     if obj.env.cr.closed:
-        return u"{}[{}] (closed cursor)".format(obj._name, _ids_repr(obj._ids))
+        return color.basic_render_record(obj) + " (closed cursor)"
 
     field_names = sorted(
         field

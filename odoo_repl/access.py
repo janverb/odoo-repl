@@ -14,13 +14,13 @@ from odoo_repl.imports import odoo, t
 
 def access_for_model(
     env,  # type: odoo.api.Environment
-    model_id,  # type: int
+    model_record,  # type: odoo.models.IrModel
     user=None,  # type: t.Optional[odoo.models.ResUsers]
 ):
     # type: (...) -> odoo.models.IrModelAccess
     return (
         env["ir.model.access"]
-        .search([("model_id", "=", model_id)])
+        .search([("model_id", "=", model_record.id)])
         .filtered(
             lambda acc: not (
                 user is not None
@@ -33,13 +33,13 @@ def access_for_model(
 
 def rules_for_model(
     env,  # type: odoo.api.Environment
-    model_id,  # type: int
+    model_record,  # type: odoo.models.IrModel
     user=None,  # type: t.Optional[odoo.models.ResUsers]
 ):
     # type: (...) -> odoo.models.IrRule
     return (
         env["ir.rule"]
-        .search([("model_id", "=", model_id)])
+        .search([("model_id", "=", model_record.id)])
         .filtered(
             lambda rule: not (
                 user is not None

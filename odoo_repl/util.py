@@ -201,3 +201,19 @@ def stringify_text(text):
             # Hope for the best
             return text  # type: ignore
     return text.encode("ascii", errors="replace")  # type: ignore
+
+
+_base_url = None
+
+
+def get_base_url():
+    # type: () -> t.Text
+    global _base_url
+    if not _base_url:
+        _base_url = env["ir.config_parameter"].get_param("web.base.url")
+    return _base_url  # type: ignore
+
+
+def generate_url(model, id_):
+    # type: (t.Text, int) -> t.Text
+    return "{}/web?debug=1#model={}&id={}".format(get_base_url(), model, id_)
