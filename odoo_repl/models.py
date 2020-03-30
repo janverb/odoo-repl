@@ -91,8 +91,9 @@ def model_repr(obj):
             # Like str.ljust, but not confused about colors
             + (max_len - len(field)) * " "
             + color.color_field(f_obj)
-            + u" ({})".format(f_obj.string)
         )
+        if not fields.has_auto_string(f_obj):
+            parts[-1] += u" ({})".format(f_obj.string)
     if delegated:
         buckets = collections.defaultdict(
             list

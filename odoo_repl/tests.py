@@ -76,8 +76,11 @@ class TestOdooRepl(TestCase):
         rep = odoo_repl.odoo_repr(self.env["res.users"])
         self.assertRegex(rep, r"^res.users\nUsers\n")
         self.assertRegex(rep, r"\nInherits from res.partner through partner_id\n")
-        self.assertRegex(rep, r"\nrsd  company_id:\s*many2one: res.company \(Company\)")
-        self.assertRegex(rep, r"\nRs   login:\s*char \(Login\)\n")
+        self.assertRegex(rep, r"\nrsd  company_id:\s*many2one: res.company\n")
+        self.assertRegex(rep, r"\nRs   login:\s*char\n")
+        self.assertRegex(
+            rep, r"\nRs   partner_id:\s*many2one: res.partner \(Related Partner\)\n"
+        )
         self.assertRegex(rep, r"\nDelegated to partner_id: \w+")
         self.assertRegex(rep, r"\nbase: /[^\n]*/res_users.py:\d+")
 
@@ -85,7 +88,7 @@ class TestOdooRepl(TestCase):
         self.assertRegex(
             odoo_repr(self.env["res.users"].login),
             r"""^char login on res.users \(required, store(, related_sudo)?\)
-Login: Used to log into the system(
+Used to log into the system(
 On change: on_change_login)?
 base: /[^\n]*/res_users.py:\d+$""",
         )
@@ -93,7 +96,7 @@ base: /[^\n]*/res_users.py:\d+$""",
             odoo_repr(self.env["res.users"].company_id),
             r"""^many2one company_id on res.users to res.company"""
             r""" \(required, store(, related_sudo)?\)
-Company: The [^\n]*\.
+The [^\n]*\.
 Default value: (_get_company|lambda self: self\.env\.company\.id)(
 Constrained by _check_company)?
 base: /[^\n]*/res_users.py:\d+$""",
@@ -101,7 +104,6 @@ base: /[^\n]*/res_users.py:\d+$""",
         self.assertRegex(
             odoo_repr(self.env["res.currency"].date),
             r"""^date date on res.currency \(readonly(, related_sudo)?\)
-Date
 Computed by _?compute_date
 base: /[^\n]*/res_currency.py:\d+$""",
         )

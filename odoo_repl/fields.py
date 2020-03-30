@@ -168,9 +168,12 @@ def field_repr(field, env=None):
     if properties:
         parts[-1] += " ({})".format(", ".join(properties))
 
-    parts.append(field.string)
+    has_auto = has_auto_string(field)
+    if not has_auto:
+        parts.append(field.string)
+
     if field.help:
-        if "\n" in field.help:
+        if has_auto or "\n" in field.help:
             parts.append(field.help)
         else:
             parts[-1] += ": " + field.help
@@ -357,3 +360,20 @@ def _format_selection_values(field):
     else:
         # Most likely a list of 2-tuples
         return color.highlight(pprint.pformat(field.selection))
+
+
+def has_auto_string(field):
+    # type: (Field) -> bool
+    """Return whether the string of a field looks automatically generated."""
+    if field.string == "unknown":
+        # Legacy osv fields
+        return True
+    string_ = field.string.lower()
+    name = field.name.replace("_", " ")
+    if name == string_:
+        return True
+    if name.endswith(" ids") and name[:-4] == string_:
+        return True
+    if name.endswith(" id") and name[:-3] == string_:
+        return True
+    return False
