@@ -72,7 +72,7 @@ class FieldProxy(object):
 
     def gitsource_(self):
         # type: () -> None
-        gitsources.gitsource_(self._real)
+        gitsources.gitsource(self._real)
 
     def fzf_(self):
         # type: () -> t.Optional[BaseModel]

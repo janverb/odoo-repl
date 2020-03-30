@@ -220,3 +220,26 @@ def generate_url(**params):
         get_base_url(),
         "&".join("{}={}".format(key, value) for key, value in params.items()),
     )
+
+
+def is_record(obj):
+    # type: (object) -> bool
+    """Return whether an object is an Odoo record."""
+    return isinstance(obj, BaseModel) and hasattr(obj, "_ids")
+
+
+if MYPY:
+    C = t.TypeVar("C", bound=t.Callable[..., object])
+
+
+def patch(cls, name=None, func=None):
+    # type: (t.Type[object], t.Optional[str], t.Any) -> t.Callable[[C], C]
+    def decorator(method):
+        # type: (C) -> C
+        if cls is not None:
+            setattr(cls, name if name is not None else method.__name__, method)
+        return method
+
+    if func is not None:
+        decorator(func)
+    return decorator

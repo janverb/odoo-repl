@@ -60,7 +60,7 @@ class TestOdooRepl(TestCase):
     def test_record_repr(self):
         if odoo_repl.xml_thread:
             odoo_repl.xml_thread.join()
-        rep = odoo_repl.record_repr(self.u.demo)
+        rep = odoo_repl.odoo_repr(self.u.demo)
         self.assertRegex(rep, r"^res.users\[\d*\] \(ref.base.user_demo\)\n")
         self.assertRegex(
             rep, r"\ncompany_id:\s*res.company\[\d*\] \(ref.base.main_company\)\n"

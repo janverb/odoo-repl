@@ -75,7 +75,7 @@ class MethodProxy(object):
                 print(sources.format_source(sources.Source(module, fname, lnum)))
                 print(color.highlight("".join(lines)))
 
-    gitsource_ = gitsources.gitsource_
+    gitsource_ = gitsources.gitsource
 
     def grep_(self, *args, **kwargs):
         # type: (object, object) -> None

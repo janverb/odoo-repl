@@ -21,6 +21,7 @@ def fzf(vals):
     return proc.stdout.read().decode("utf8").strip("\0").split("\0")
 
 
+@util.patch(BaseModel, "fzf_")
 def fzf_field(model, field="display_name"):
     # type: (AnyModel, str) -> t.Optional[AnyModel]
     """Narrow down a recordset based on a field, by default display_name."""
@@ -70,6 +71,7 @@ def fzf_stored_field(model, field):
     return model.browse(id_ for value in result for id_ in by_value[value])
 
 
+@util.patch(BaseModel, "xfzf_")
 def fzf_xml_id(model):
     # type: (AnyModel) -> t.Optional[AnyModel]
     """Select records by their XML IDs."""

@@ -4,8 +4,6 @@ from __future__ import unicode_literals
 
 import pprint
 
-import odoo_repl
-
 from odoo_repl import color
 from odoo_repl import sources
 from odoo_repl import util
@@ -56,7 +54,7 @@ def rules_for_model(
 def rule_repr(rule):
     # type: (odoo.models.IrRule) -> t.Text
     parts = []
-    parts.append(odoo_repl._record_header(rule))
+    parts.append(color.record_header(rule))
     parts.append(color.display_name(rule.display_name))
     groups = ", ".join(
         color.record(group.name) + util.xml_id_tag(group) for group in rule.groups
@@ -78,7 +76,7 @@ def rule_repr(rule):
 def access_repr(access):
     # type: (odoo.models.IrModelAccess) -> t.Text
     parts = []
-    parts.append(odoo_repl._record_header(access))
+    parts.append(color.record_header(access))
     parts.append(color.display_name(access.display_name))
     parts.append(
         color.record(access.group_id.name) + util.xml_id_tag(access.group_id)

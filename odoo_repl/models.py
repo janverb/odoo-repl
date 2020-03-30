@@ -5,13 +5,12 @@ import collections
 import inspect
 import subprocess
 
-import odoo_repl
-
 from odoo_repl import access
 from odoo_repl import color
 from odoo_repl import fields
 from odoo_repl import grep
 from odoo_repl import methods
+from odoo_repl import records
 from odoo_repl import sources
 from odoo_repl import util
 from odoo_repl.imports import abc, odoo, t, cast, Field, PY3, Text, BaseModel
@@ -357,7 +356,7 @@ class ModelProxy(object):
         # type: (int) -> BaseModel
         """Return a random record, or multiple."""
         assert self._real is not None
-        return odoo_repl._BaseModel_search_(self._real, shuf=num)
+        return records.search_(self._real, shuf=num)
 
     def source_(self, location=None):
         # type: (t.Optional[t.Text]) -> None

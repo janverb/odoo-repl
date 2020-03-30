@@ -180,6 +180,14 @@ def render_record(obj, link=True):
     return text
 
 
+def record_header(obj):
+    # type: (BaseModel) -> t.Text
+    rep = header(basic_render_record(obj)) + util.xml_id_tag(obj)
+    if obj.env.uid != 1:
+        rep += " (as {})".format(render_user(obj.env.user))
+    return rep
+
+
 def color_value(obj, field_type):
     # type: (object, t.Text) -> t.Text
     """Color a field value depending on its type and its field's type."""

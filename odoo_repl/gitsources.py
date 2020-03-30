@@ -13,10 +13,11 @@ import os
 import re
 import subprocess
 
-from odoo_repl.imports import t, urlparse, odoo
+from odoo_repl.imports import t, urlparse, odoo, BaseModel
 from odoo_repl import color
 from odoo_repl import config
 from odoo_repl import sources
+from odoo_repl import util
 
 PAT_URL = re.compile(r"\w+://.*")
 
@@ -125,6 +126,9 @@ def format_sources(sourcelist):
     return [format_source(source) for source in sourcelist]
 
 
-def gitsource_(thing):
+def gitsource(thing):
     # type: (sources.Sourceable) -> None
     print("\n".join(format_sources(sources.find_source(thing))))
+
+
+util.patch(BaseModel, "gitsource_", gitsource)
