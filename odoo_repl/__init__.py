@@ -619,7 +619,7 @@ def _BaseModel_source_(record, location=None, context=False):
     import lxml.etree
 
     for rec in record:
-        for rec_id in util.xml_ids(rec):
+        for rec_id in reversed(util.xml_ids(rec)):
             for definition in sources.xml_records[rec_id]:
                 if location is not None and definition.module != location:
                     continue
