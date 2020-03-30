@@ -333,6 +333,7 @@ def _find_inverse_names(field, env):
         return inverse_names
     inverse_names.update(inv.name for inv in getattr(field, "inverse_fields", ()))
     inverse_name = getattr(field, "inverse_name", False)
+    table = getattr(field, "relation", None)
     if inverse_name:
         inverse_names.add(inverse_name)
     if field.comodel_name:
@@ -340,6 +341,8 @@ def _find_inverse_names(field, env):
             if (
                 other_field.comodel_name == field.model_name
                 and getattr(other_field, "inverse_name", False) == field.name
+                or table
+                and getattr(other_field, "relation", None) == table
             ):
                 inverse_names.add(other_field.name)
     return inverse_names
