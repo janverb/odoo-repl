@@ -10,7 +10,7 @@ from datetime import datetime, date
 from odoo_repl import config
 from odoo_repl import shorthand
 from odoo_repl import util
-from odoo_repl.imports import odoo, t, TextLike, MYPY, Field, BaseModel
+from odoo_repl.imports import odoo, t, TextLike, Field, BaseModel, cast
 
 
 class Color:
@@ -80,14 +80,33 @@ def color_field(field_obj):
     return f_type
 
 
-def render_user(obj):
-    # type: (odoo.models.ResUsers) -> t.Text
-    return ", ".join(
-        (record if user.active else missing)(
-            shorthand.UserBrowser._repr_for_value(user.login)
-        )
-        for user in obj
-    )
+def render_user(obj, link=True):
+    # type: (odoo.models.ResUsers, bool) -> t.Text
+    def render_single(user):
+        # type: (odoo.models.ResUsers) -> t.Text
+        text = shorthand.UserBrowser._repr_for_value(user.login)
+        text = (record if user.active else missing)(text)
+        if link:
+            text = linkify_record(text, user)
+        return text
+
+    return ", ".join(map(render_single, obj))
+
+
+def render_employee(obj, link=True):
+    # type: (odoo.models.HrEmployee, bool) -> t.Text
+    def render_single(employee):
+        # type: (odoo.models.HrEmployee) -> t.Text
+        if employee.user_id and employee.user_id.employee_ids == employee:
+            text = shorthand.EmployeeBrowser._repr_for_value(employee.user_id.login)
+        else:
+            text = basic_render_record(employee, link=link)
+        text = (record if employee.active else missing)(text)
+        if link:
+            text = linkify_record(text, employee)
+        return text
+
+    return ", ".join(map(render_single, obj))
 
 
 def make_affix(obj):
@@ -110,25 +129,22 @@ def make_affix(obj):
     return None
 
 
-def basic_render_record(obj):
-    # type: (BaseModel) -> t.Text
+def basic_render_record(obj, link=True):
+    # type: (BaseModel, bool) -> t.Text
     """Build a model[id] style record representation.
 
     This doesn't apply coloring but does apply linking if appropriate.
     """
-    if len(obj._ids) == 1 and isinstance(obj.id, int) and config.clickable_records:
-        return linkify(
-            "{}[{}]".format(obj._name, obj.id), util.generate_url(obj._name, obj.id)
-        )
+    if len(obj._ids) == 1 and isinstance(obj.id, int) and link:
+        return linkify_record("{}[{}]".format(obj._name, obj.id), obj)
 
     fragments = []  # type: t.List[t.Text]
     news = 0
     for ident in obj._ids:
         if isinstance(ident, int):
-            if config.clickable_records:
-                fragments.append(
-                    linkify(str(ident), util.generate_url(obj._name, ident))
-                )
+            if link and config.clickable_records:
+                url = util.generate_url(model=obj._name, id=ident)
+                fragments.append(linkify(str(ident), url))
             else:
                 fragments.append(str(ident))
         else:
@@ -141,8 +157,8 @@ def basic_render_record(obj):
     return "{}[{}]".format(obj._name, ", ".join(fragments))
 
 
-def render_record(obj):
-    # type: (BaseModel) -> t.Text
+def render_record(obj, link=True):
+    # type: (BaseModel, bool) -> t.Text
     # TODO: It might be nice to color inactive records with missing.
     # But what about multi-records?
     if not hasattr(obj, "_ids") or not obj._ids:
@@ -151,23 +167,12 @@ def render_record(obj):
         return record("{} × {}".format(obj._name, len(obj._ids)))
     try:
         if obj._name == "res.users":
-            if MYPY:
-                assert isinstance(obj, odoo.models.ResUsers)
-            return render_user(obj)
+            return render_user(cast("odoo.models.ResUsers", obj), link=link)
         elif obj._name == "hr.employee":
-            if MYPY:
-                assert isinstance(obj, odoo.models.HrEmployee)
-            return ", ".join(
-                (record if em.active and em.user_id.active else missing)(
-                    shorthand.EmployeeBrowser._repr_for_value(em.user_id.login)
-                )
-                if em.user_id and em.user_id.employee_ids == em
-                else record("hr.employee[{}]".format(em.id))
-                for em in obj
-            )
+            return render_employee(cast("odoo.models.HrEmployee", obj), link=link)
     except Exception:
         pass
-    text = record(basic_render_record(obj))
+    text = record(basic_render_record(obj, link=link))
     if len(obj._ids) == 1:
         affix = make_affix(obj)
         if affix is not None:
@@ -242,3 +247,17 @@ def linkify(text, uri):
     This lives in color.py because that's where the other terminal stuff is.
     """
     return "\x1b]8;;{uri}\x1b\\{text}\x1b]8;;\x1b\\".format(text=text, uri=uri)
+
+
+def linkify_url(text, **params):
+    # type: (t.Text, object) -> t.Text
+    if not config.clickable_records:
+        return text
+    return linkify(text, util.generate_url(**params))
+
+
+def linkify_record(text, obj):
+    # type: (t.Text, BaseModel) -> t.Text
+    if not config.clickable_records or len(obj) != 1:
+        return text
+    return linkify(text, util.generate_url(model=obj._name, id=obj.id))

@@ -512,8 +512,8 @@ class ModelProxy(object):
             if menu.action.res_model == self._real._name
         )
 
-        def print_act(action):
-            # type: (odoo.models.IrActionsAct_window) -> None
+        def print_act(action, link=True):
+            # type: (odoo.models.IrActionsAct_window, bool) -> None
             views = action.view_id
             unknown = []
             for view_id, view_type in action.views:
@@ -527,18 +527,30 @@ class ModelProxy(object):
                     unknown.append(view_type)
 
             to_show = [
-                (color.string(view.type), color.render_record(view)) for view in views
+                (view.type, color.render_record(view, link=False))
+                for view in sorted(views, key=lambda v: v.type)
             ]
             to_show.extend(
-                (color.string(view_type), color.missing("???")) for view_type in unknown
+                (view_type, color.missing("???")) for view_type in sorted(unknown)
             )
             for view_type, view_rep in to_show:
-                print("    {}: {}".format(view_type, view_rep))
+                type_rep = color.string(view_type)
+                if link:
+                    # If there's a src_model, the link is useless without an active_id
+                    # TODO: spin off into similar method on records?
+                    type_rep = color.linkify_url(
+                        type_rep,
+                        action=action.id,
+                        model=action.res_model,
+                        view_type=("list" if view_type == "tree" else view_type),
+                    )
+                print("    {}: {}".format(type_rep, view_rep))
 
         for path, action in menus:
             lead = path[:-1]
             end = path[-1]
-            header = color.menu_lead("/".join(lead) + "/") + color.menu(end)
+            header = color.menu_lead("/".join(lead) + "/")
+            header += color.linkify_url(color.menu(end), action=action.id)
             affix = color.make_affix(action)
             if affix:
                 header += " ({})".format(affix)
@@ -569,7 +581,7 @@ class ModelProxy(object):
                 if affix:
                     header += u" ({})".format(affix)
                 print(header)
-                print_act(action)
+                print_act(action, link=False)
                 print()
 
     def _(self, *args, **kwargs):

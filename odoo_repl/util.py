@@ -214,6 +214,9 @@ def get_base_url():
     return _base_url  # type: ignore
 
 
-def generate_url(model, id_):
-    # type: (t.Text, int) -> t.Text
-    return "{}/web?debug=1#model={}&id={}".format(get_base_url(), model, id_)
+def generate_url(**params):
+    # type: (object) -> t.Text
+    return "{}/web?debug=1#{}".format(
+        get_base_url(),
+        "&".join("{}={}".format(key, value) for key, value in params.items()),
+    )
