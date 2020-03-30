@@ -268,4 +268,4 @@ def linkify_record(text, obj):
     # type: (t.Text, BaseModel) -> t.Text
     if not config.clickable_records or len(obj) != 1:
         return text
-    return linkify(text, util.generate_url(model=obj._name, id=obj.id))
+    return linkify(text, util.link_for_record(obj))

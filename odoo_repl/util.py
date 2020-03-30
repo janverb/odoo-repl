@@ -222,6 +222,11 @@ def generate_url(**params):
     )
 
 
+def link_for_record(obj):
+    # type: (BaseModel) -> t.Text
+    return generate_url(model=obj._name, id=obj.id)
+
+
 def is_record(obj):
     # type: (object) -> bool
     """Return whether an object is an Odoo record."""

@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import random
+import subprocess
 
 import odoo_repl
 from odoo_repl.imports import t, BaseModel, Text, odoo
@@ -297,3 +298,10 @@ def source_(record, location=None, context=False):
                 print(sources.format_source(definition.to_source()))
                 src = lxml.etree.tostring(elem, encoding="unicode")
                 print(color.highlight(src, "xml"), end="\n\n")
+
+
+@util.patch(BaseModel)
+def open_(self):
+    # type: (BaseModel) -> None
+    for record in self[:10]:
+        subprocess.Popen(["xdg-open", util.link_for_record(record)])
