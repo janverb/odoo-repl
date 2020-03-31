@@ -273,6 +273,9 @@ def _cleandoc(doc):
 def find_docs(things):
     # type: (t.Iterable[t.Tuple[str, object]]) -> t.Iterable[t.Tuple[str, t.Text]]
     for name, thing in things:
+        if isinstance(thing, (classmethod, staticmethod)):
+            # ir.http.binary_content in Odoo 12 is a classmethod
+            thing = thing.__func__
         doc = getattr(thing, "__doc__", None)
         if doc:
             doc = _cleandoc(doc)
