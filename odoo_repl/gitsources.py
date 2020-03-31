@@ -22,6 +22,14 @@ from odoo_repl import util
 PAT_URL = re.compile(r"\w+://.*")
 
 
+class GitSourceError(RuntimeError):
+    pass
+
+
+class GitProcessError(GitSourceError):
+    pass
+
+
 def git(path, *args):
     # type: (t.Text, t.Text) -> t.Text
     """Execute a git command in the context of a file.
@@ -39,7 +47,9 @@ def git(path, *args):
     output = proc.stdout.read()
     status = proc.wait()
     if status:
-        raise RuntimeError("{!r} failed with status {}".format(argv, status))
+        raise GitProcessError(
+            "{!r} failed with status {}".format(" ".join(argv), status)
+        )
     if output.endswith("\n"):
         output = output[:-1]
     return output
@@ -53,7 +63,10 @@ def get_config(path, key):
 def root(path):
     # type: (t.Text) -> t.Text
     """Get the root directory of a git repository."""
-    return git(path, "rev-parse", "--show-toplevel")
+    try:
+        return git(path, "rev-parse", "--show-toplevel")
+    except GitProcessError:
+        raise GitSourceError("File {!r} is not in a repository!".format(path))
 
 
 def abbreviate(path, commit):
@@ -73,7 +86,7 @@ def remote_base(path):
         if "@" in origin_url:
             _, origin_url = origin_url.split("@", 1)
         if ":" not in origin_url:
-            raise RuntimeError("Can't parse remote URL {!r}!".format(origin_url))
+            raise GitSourceError("Can't parse remote URL {!r}!".format(origin_url))
         hostname, path = origin_url.split(":", 1)
         hostname = hostname.strip("/")
         path = path.strip("/")
@@ -89,10 +102,13 @@ def to_url(path):
     # type: (t.Text) -> t.Text
     """Turn a file path into a shareable URL."""
     path = os.path.realpath(path)  # For symlinks
+    rootdir = root(path)
     base = remote_base(path)
 
     # Last commit that touched the file
     commit = git(path, "rev-list", "-1", "HEAD", "--", path)
+    if not commit:
+        raise GitSourceError("File {!r} hasn't been committed!".format(path))
 
     # Remote branches that contain that commit
     containing = git(
@@ -106,7 +122,7 @@ def to_url(path):
     else:
         commit = abbreviate(path, commit)
 
-    trail = os.path.relpath(path, root(path))
+    trail = os.path.relpath(path, rootdir)
     return "{}/blob/{}/{}".format(base, commit, trail)
 
 
@@ -128,7 +144,12 @@ def format_sources(sourcelist):
 
 def gitsource(thing):
     # type: (sources.Sourceable) -> None
-    print("\n".join(format_sources(sources.find_source(thing))))
+    for source in sources.find_source(thing):
+        try:
+            fmt = format_source(source)
+        except GitSourceError as exc:
+            fmt = "{}: {}".format(color.module(source.module), color.missing(str(exc)))
+        print(fmt)
 
 
 util.patch(BaseModel, "gitsource_", gitsource)
