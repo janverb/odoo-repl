@@ -211,6 +211,16 @@ def get_base_url():
     global _base_url
     if not _base_url:
         _base_url = env["ir.config_parameter"].get_param("web.base.url")
+    if not _base_url:
+        # TODO: Using this by default might be more reliable
+        # But it would be less useful remotely
+        # Solicit feedback?
+        port = (
+            odoo.tools.config.get("xmlrpc_port")
+            or odoo.tools.config.get("http_port")
+            or "8069"
+        )
+        _base_url = "http://localhost:{}".format(port)
     return _base_url  # type: ignore
 
 
