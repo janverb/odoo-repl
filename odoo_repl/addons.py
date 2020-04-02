@@ -6,8 +6,10 @@ import subprocess
 import odoo_repl
 
 from odoo_repl import color
+from odoo_repl import gitsources
 from odoo_repl import grep
 from odoo_repl import shorthand
+from odoo_repl import sources
 from odoo_repl import util
 from odoo_repl.imports import odoo, t, PY3, Text
 
@@ -91,6 +93,11 @@ class Addon(object):
         if not mod_path:
             raise RuntimeError("Can't find path of module {!r}".format(self._module))
         return mod_path
+
+    def gitsource_(self):
+        # type: () -> None
+        """Print a link to the git host that matches the local version."""
+        print(gitsources.format_source(sources.Source(self._module, self.path, None)))
 
     @property
     def ref(self):

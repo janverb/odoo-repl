@@ -32,11 +32,10 @@ class GitProcessError(GitSourceError):
 
 def git(path, *args):
     # type: (t.Text, t.Text) -> t.Text
-    """Execute a git command in the context of a file.
-
-    path is assumed to be a file, or at least not the repository root itself.
-    """
-    argv = ["git", "-C", os.path.dirname(path)]
+    """Execute a git command in the context of a file."""
+    if not os.path.isdir(path):
+        path = os.path.dirname(path)
+    argv = ["git", "-C", path]
     argv.extend(args)
     proc = subprocess.Popen(
         argv, stdout=subprocess.PIPE, stdin=subprocess.PIPE, universal_newlines=True
@@ -98,32 +97,43 @@ def remote_base(path):
     return base
 
 
+def branches_containing_commit(path, commit):
+    # type: (t.Text, t.Text) -> t.List[t.Text]
+    """Return refs of remote branches that contain a commit."""
+    return git(
+        path, "branch", "-r", "--format", "%(refname)", "--contains", commit
+    ).split("\n")
+
+
+def commit_for_file(path, abbrev=True):
+    # type: (t.Text, bool) -> t.Text
+    """Return an appropriate commit or branch for a file."""
+    commit = git(path, "rev-list", "-1", "HEAD", "--", path)
+    if not commit:
+        raise GitSourceError("File {!r} hasn't been committed!".format(path))
+
+    containing = branches_containing_commit(path, commit)
+    if not any(branch.startswith("refs/remotes/origin/") for branch in containing):
+        # Latest commit doesn't exist on remote, fall back to branch
+        # The line number is likely to be off
+        return odoo.release.version
+
+    if abbrev:
+        commit = abbreviate(path, commit)
+
+    return commit
+
+
 def to_url(path):
     # type: (t.Text) -> t.Text
     """Turn a file path into a shareable URL."""
     path = os.path.realpath(path)  # For symlinks
     rootdir = root(path)
     base = remote_base(path)
-
-    # Last commit that touched the file
-    commit = git(path, "rev-list", "-1", "HEAD", "--", path)
-    if not commit:
-        raise GitSourceError("File {!r} hasn't been committed!".format(path))
-
-    # Remote branches that contain that commit
-    containing = git(
-        path, "branch", "-r", "--format", "%(refname)", "--contains", commit
-    ).split("\n")
-
-    if not any(branch.startswith("refs/remotes/origin/") for branch in containing):
-        # Latest commit doesn't exist on remote, fall back to branch
-        # The line number is likely to be off
-        commit = odoo.release.version
-    else:
-        commit = abbreviate(path, commit)
-
     trail = os.path.relpath(path, rootdir)
-    return "{}/blob/{}/{}".format(base, commit, trail)
+    mode = "tree" if os.path.isdir(path) else "blob"
+    commit = commit_for_file(path)
+    return "{}/{}/{}/{}".format(base, mode, commit, trail)
 
 
 def format_source(source):
