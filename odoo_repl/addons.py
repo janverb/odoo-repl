@@ -55,6 +55,21 @@ class Addon(object):
         )
         if not manifest:
             raise RuntimeError("Module {!r} not found".format(self._module))
+
+        def unicodify(thing):
+            # type: (object) -> t.Any
+            if isinstance(thing, dict):
+                return {key: unicodify(value) for key, value in thing.items()}
+            elif isinstance(thing, list):
+                return [unicodify(item) for item in thing]
+            elif isinstance(thing, bytes):
+                return thing.decode("utf8")
+            else:
+                return thing
+
+        if not PY3:
+            manifest = unicodify(manifest)
+
         return _AttributableDict(manifest)
 
     @property
@@ -167,84 +182,89 @@ class Addon(object):
         # type: () -> str
         return str("{}({!r})".format(self.__class__.__name__, self._module))
 
-    def __str__(self):
-        # type: () -> str
-        defined_models = (
-            self._env["ir.model"]
-            .browse(
-                self._env["ir.model.data"]
-                .search([("model", "=", "ir.model"), ("module", "=", self._module)])
-                .mapped("res_id")
-            )
-            .mapped("model")
-        )
-
-        state = self.record.state
-        if (
-            state == "installed"
-            and self.record.installed_version != self.manifest.version
-        ):
-            state += " (out of date)"
-
-        if state == "installed":
-            state = color.green.bold(state.capitalize())
-        elif not state:
-            state = color.yellow.bold("???")
-        elif state in ("uninstallable", "uninstalled"):
-            state = color.red.bold(state.capitalize())
-        else:
-            state = color.yellow.bold(state.capitalize())
-
-        description = util.stringify_text(self.manifest.description)
-        if isinstance(self.manifest.author, Text):
-            author = util.stringify_text(self.manifest.author)
-        else:
-            author = util.stringify_text(", ".join(self.manifest.author))
-
-        parts = []
-        parts.append(
-            "{} {} by {}".format(
-                color.module(self._module), self.manifest.version, author
-            )
-        )
-        parts.append(util.link_for_record(self.record))
-        parts.append(self.path)
-        parts.append(state)
-        parts.append(color.display_name(util.stringify_text(self.manifest.name)))
-        parts.append(self.manifest.summary)
-
-        def format_depends(pretext, modules):
-            # type: (t.Text, odoo.models.IrModuleModule) -> None
-            if modules:
-                names = map(_color_state, sorted(modules, key=lambda mod: mod.name))
-                parts.append("{}: {}".format(pretext, ", ".join(names)))
-
-        # TODO: Indirect dependencies are a bit noisy, when/how do we show them?
-        direct, _indirect = self._get_depends()
-        format_depends("Depends", direct)
-        # format_depends("Indirectly depends", indirect)
-        r_direct, _r_indirect = self._get_rdepends()
-        format_depends("Dependents", r_direct)
-        # format_depends("Indirect dependents", r_indirect)
-
-        if defined_models:
-            parts.append(
-                "Defines: {}".format(", ".join(map(color.model, defined_models)))
-            )
-        if description:
-            parts.append("")
-            # rst2ansi might be better here
-            # (https://pypi.org/project/rst2ansi/)
-            parts.append(color.highlight(description, "rst"))
-
-        return str("\n".join(map(util.stringify_text, parts)))
-
     def _repr_pretty_(self, printer, _cycle):
         # type: (t.Any, t.Any) -> None
         if printer.indentation == 0:
-            printer.text(str(self))
+            printer.text(addon_repr(self))
         else:
             printer.text(repr(self))
+
+
+def addon_repr(addon):
+    # type: (Addon) -> t.Text
+    # TODO: A lot of the most interesting information is at the top so you have
+    # to scroll up
+    # Ideas:
+    # - Put it at the bottom instead
+    # - Don't show the README by default
+
+    defined_models = (
+        addon._env["ir.model"]
+        .browse(
+            addon._env["ir.model.data"]
+            .search([("model", "=", "ir.model"), ("module", "=", addon._module)])
+            .mapped("res_id")
+        )
+        .mapped("model")
+    )
+
+    state = addon.record.state
+    if (
+        state == "installed"
+        and addon.record.installed_version != addon.manifest.version
+    ):
+        state += " (out of date)"
+
+    if state == "installed":
+        state = color.green.bold(state.capitalize())
+    elif not state:
+        state = color.yellow.bold("???")
+    elif state in ("uninstallable", "uninstalled"):
+        state = color.red.bold(state.capitalize())
+    else:
+        state = color.yellow.bold(state.capitalize())
+
+    description = addon.manifest.description
+    if isinstance(addon.manifest.author, Text):
+        author = addon.manifest.author
+    else:
+        author = ", ".join(addon.manifest.author)
+
+    parts = []
+    parts.append(
+        "{} {} by {}".format(
+            color.module(addon._module), addon.manifest.version, author
+        )
+    )
+    parts.append(util.link_for_record(addon.record))
+    parts.append(addon.path)
+    parts.append(state)
+    parts.append(color.display_name(addon.manifest.name))
+    parts.append(addon.manifest.summary)
+
+    def format_depends(pretext, modules):
+        # type: (t.Text, odoo.models.IrModuleModule) -> None
+        if modules:
+            names = map(_color_state, sorted(modules, key=lambda mod: mod.name))
+            parts.append("{}: {}".format(pretext, ", ".join(names)))
+
+    # TODO: Indirect dependencies are a bit noisy, when/how do we show them?
+    direct, _indirect = addon._get_depends()
+    format_depends("Depends", direct)
+    # format_depends("Indirectly depends", indirect)
+    r_direct, _r_indirect = addon._get_rdepends()
+    format_depends("Dependents", r_direct)
+    # format_depends("Indirect dependents", r_indirect)
+
+    if defined_models:
+        parts.append("Defines: {}".format(", ".join(map(color.model, defined_models))))
+    if description:
+        parts.append("")
+        # rst2ansi might be better here
+        # (https://pypi.org/project/rst2ansi/)
+        parts.append(color.highlight(description, "rst"))
+
+    return "\n".join(parts)
 
 
 def _color_state(module):

@@ -30,7 +30,7 @@ import odoo_repl
 
 from odoo_repl import config
 from odoo_repl import odoo_repr
-from odoo_repl.imports import t, PY3, cast, odoo  # noqa: F401
+from odoo_repl.imports import t, PY3, cast, odoo, Text  # noqa: F401
 
 
 class TestOdooRepl(TestCase):
@@ -140,12 +140,12 @@ base: /[^\n]*/res_partner.py:\d+$""",
         self.assertIn("base", dir(self.addons))
 
         self.assertEqual(self.addons.auth_ldap.manifest.installable, True)
-        self.assertIsInstance(self.addons.auth_ldap.manifest.version, str)
+        self.assertIsInstance(self.addons.auth_ldap.manifest.version, Text)
         self.assertTrue(self.addons.auth_ldap.path.endswith("addons/auth_ldap"))
         self.assertTrue(self.addons.auth_ldap.record.name, "auth_ldap")
 
         self.assertRegex(
-            str(self.addons.auth_ldap),
+            odoo_repr(self.addons.auth_ldap),
             r"""^auth_ldap [\d\.]* by O[^\n]*
 https?://.*/web\?debug=1#model=ir\.module\.module&id=\d+
 [^\n]*/addons/auth_ldap
@@ -161,7 +161,7 @@ Adds support for authentication by LDAP server.
         )
 
         self.assertRegex(
-            str(self.addons.base),
+            odoo_repr(self.addons.base),
             r"""^base [\d\.]* by O[^\n]*
 https?://.*/web\?debug=1#model=ir\.module\.module&id=\d+
 [^\n]*/addons/base

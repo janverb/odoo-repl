@@ -205,7 +205,7 @@ def odoo_repr(obj):
     elif isinstance(obj, BaseModel):
         return records.record_repr(obj)
     elif isinstance(obj, addons.Addon):
-        return str(obj)
+        return addons.addon_repr(obj)
     else:
         return repr(obj)
 
