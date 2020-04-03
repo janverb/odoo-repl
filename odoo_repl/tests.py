@@ -147,6 +147,7 @@ base: /[^\n]*/res_partner.py:\d+$""",
         self.assertRegex(
             str(self.addons.auth_ldap),
             r"""^auth_ldap [\d\.]* by O[^\n]*
+https?://.*/web\?debug=1#model=ir\.module\.module&id=\d+
 [^\n]*/addons/auth_ldap
 (Uni|I)nstalled
 Authentication via LDAP
@@ -162,6 +163,7 @@ Adds support for authentication by LDAP server.
         self.assertRegex(
             str(self.addons.base),
             r"""^base [\d\.]* by O[^\n]*
+https?://.*/web\?debug=1#model=ir\.module\.module&id=\d+
 [^\n]*/addons/base
 Installed
 Base
@@ -195,18 +197,13 @@ Defines: [^\n]*, res.users, """,
     def test_create_write_info(self):
         demo = self.env["res.users"].search([("login", "=", "demo")])
         self.assertRegex(
-            odoo_repr(demo),
-            r"""
-Created on 20..-..-.. ..:..:..
-""",
+            odoo_repr(demo), "Created on 20..-..-.. ..:..:..",
         )
         demo.partner_id.sudo(demo).write({"website": "blargh"})
         self.assertRegex(
             odoo_repr(demo.partner_id),
-            r"""
-Created on 20..-..-.. ..:..:..
-Written on 20..-..-.. ..:..:.. by u.demo
-""",
+            r"""Created on 20..-..-.. ..:..:..
+Written on 20..-..-.. ..:..:.. by u.demo""",
         )
 
     def test_record_repr_works_if_unprivileged(self):

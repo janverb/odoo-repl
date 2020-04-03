@@ -8,6 +8,7 @@ import odoo_repl
 from odoo_repl import color
 from odoo_repl import gitsources
 from odoo_repl import grep
+from odoo_repl import records
 from odoo_repl import shorthand
 from odoo_repl import sources
 from odoo_repl import util
@@ -114,6 +115,10 @@ class Addon(object):
         argv.append(self.path)
         subprocess.Popen(argv).wait()
 
+    def open_(self):
+        # type: () -> None
+        records.open_(self.record)
+
     def _get_depends(self):
         # type: () -> t.Tuple[odoo.models.IrModuleModule, odoo.models.IrModuleModule]
         direct = (
@@ -164,7 +169,6 @@ class Addon(object):
 
     def __str__(self):
         # type: () -> str
-        # TODO: integrate with displayhooks (odoo_repr?)
         defined_models = (
             self._env["ir.model"]
             .browse(
@@ -203,6 +207,7 @@ class Addon(object):
                 color.module(self._module), self.manifest.version, author
             )
         )
+        parts.append(util.link_for_record(self.record))
         parts.append(self.path)
         parts.append(state)
         parts.append(color.display_name(util.stringify_text(self.manifest.name)))
