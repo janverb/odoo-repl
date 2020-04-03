@@ -10,7 +10,17 @@ import string
 
 import odoo_repl
 
-from odoo_repl.imports import t, overload, odoo, MYPY, Field, PY3, BaseModel, cast
+from odoo_repl.imports import (
+    t,
+    overload,
+    odoo,
+    MYPY,
+    Field,
+    PY3,
+    BaseModel,
+    AnyModel,
+    cast,
+)
 
 
 # Globally accessible environment. Use sparingly.
@@ -240,3 +250,11 @@ def patch(cls, name=None, func=None):
     if func is not None:
         decorator(func)
     return decorator
+
+
+def with_user(record, user):
+    # type: (AnyModel, odoo.models.ResUsers) -> AnyModel
+    """Like .sudo() in Odoo <=12 and .with_user() in Odoo 13+."""
+    if odoo.release.version_info >= (13, 0):
+        return record.with_user(user)
+    return record.sudo(user)

@@ -7,6 +7,16 @@ PY3 = sys.version_info >= (3,)
 MYPY = False
 if MYPY:
     import odoo
+elif PY3:
+    # Newer versions get a bit loud if we try to import openerp
+    # But in Odoo 8 importing odoo may give the wrong module, so we should
+    # try openerp first
+    # Luckily we only have to import openerp on PY2-exclusive versions
+    # So we can tell ahead of time that we don't have to try
+    try:
+        import odoo
+    except ImportError:
+        odoo = None
 else:
     try:
         import openerp as odoo

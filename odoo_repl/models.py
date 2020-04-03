@@ -402,7 +402,7 @@ class ModelProxy(object):
         model = self._real
         if user is not None:
             # TODO: handle viewing as group
-            model = model.sudo(_to_user(self._env, user))
+            model = util.with_user(model, _to_user(self._env, user))
 
         View = model.env["ir.ui.view"]
 

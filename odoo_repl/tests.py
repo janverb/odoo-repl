@@ -30,6 +30,7 @@ import odoo_repl
 
 from odoo_repl import config
 from odoo_repl import odoo_repr
+from odoo_repl import util
 from odoo_repl.imports import t, PY3, cast, odoo, Text  # noqa: F401
 
 
@@ -199,7 +200,7 @@ Defines: [^\n]*, res.users, """,
         self.assertRegex(
             odoo_repr(demo), "Created on 20..-..-.. ..:..:..",
         )
-        demo.partner_id.sudo(demo).write({"website": "blargh"})
+        util.with_user(demo.partner_id, demo).write({"website": "blargh"})
         self.assertRegex(
             odoo_repr(demo.partner_id),
             r"""Created on 20..-..-.. ..:..:..
@@ -207,9 +208,8 @@ Written on 20..-..-.. ..:..:.. by u.demo""",
         )
 
     def test_record_repr_works_if_unprivileged(self):
-        odoo_repr(
-            self.u.admin.sudo(cast("odoo.models.ResUsers", self.ref.base.public_user))
-        )
+        user = cast("odoo.models.ResUsers", self.ref.base.public_user)
+        odoo_repr(util.with_user(self.u.admin, user))
 
     def test_source_printing(self):
         with self.capture_stdout():
