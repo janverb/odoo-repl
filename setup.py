@@ -16,7 +16,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     package_data={"odoo_repl": ["py.typed"]},
     entry_points={"console_scripts": ["odoo-repl = odoo_repl.run:main"]},
-    extras_require={"color": ["Pygments"]},
+    install_requires=["Pygments"],
     license="LGPLv3+",
     classifiers=[
         "Framework :: Odoo",

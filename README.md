@@ -137,7 +137,7 @@ name = fields.Char('Name', required=True)
 612:                raise exceptions.ValidationError(_("ERROR: Invalid list of pages to split. Example: 1,5-9,10"))
 ```
 
-Source code is printed with syntax highlighting if the `Pygments` library is installed. This is declared as an extra dependency, and will be installed automatically if `odoo-repl` is installed as `odoo-repl[color]`.
+Source code is printed with syntax highlighting if the `Pygments` library is installed. This is declared as a dependency, so it will be pulled in automatically if you install using `pip`.
 
 ### Menus
 
