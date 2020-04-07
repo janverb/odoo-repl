@@ -258,3 +258,19 @@ def with_user(record, user):
     if odoo.release.version_info >= (13, 0):
         return record.with_user(user)
     return record.sudo(user)
+
+
+if PY3:
+
+    def try_decode(text):
+        # type: (str) -> str
+        return text
+
+
+else:
+
+    def try_decode(text):
+        # type: (t.Union[bytes, t.Text]) -> t.Text
+        if not isinstance(text, bytes):
+            return text
+        return text.decode("utf8", errors="replace")

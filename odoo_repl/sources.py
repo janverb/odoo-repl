@@ -156,6 +156,18 @@ def find_field_source(field):
     return res
 
 
+def find_field_module(field):
+    # type: (Field) -> t.Optional[t.Text]
+    # In Odoo 10+ (or 9+?) fields have a ._module attribute, but it points to
+    # the latest module to define the field, not the first, so we can't use it
+    for cls in reversed(type(util.env[field.model_name]).__mro__):
+        if field.name in getattr(cls, "_columns", ()) or field.name in vars(cls):
+            module = getattr(cls, "_module", None)  # type: t.Optional[t.Text]
+            if module:
+                return module
+    return None
+
+
 def find_method_source(method):
     # type: (odoo_repl.methods.MethodProxy) -> t.List[Source]
     res = []

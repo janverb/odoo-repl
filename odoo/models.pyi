@@ -36,6 +36,7 @@ class BaseModel:
     _table: Text
     _name: Text
     _description: Text
+    _module: Text
     _auto: bool
     _register: bool
     _abstract: bool  # Not all versions

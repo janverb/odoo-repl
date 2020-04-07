@@ -34,6 +34,17 @@ from odoo_repl import util
 from odoo_repl.imports import t, PY3, cast, odoo, Text  # noqa: F401
 
 
+def slow(test):
+    # type: (t.Callable[[TestOdooRepl], None]) -> t.Callable[[TestOdooRepl], None]
+    def newtest(self):
+        # type: (TestOdooRepl) -> None
+        if not config.slow_tests:
+            self.skipTest("Slow tests disabled")
+        test(self)
+
+    return newtest
+
+
 class TestOdooRepl(TestCase):
     db = None  # type: t.Optional[str]
 
@@ -84,6 +95,7 @@ class TestOdooRepl(TestCase):
         )
         self.assertRegex(rep, r"\nDelegated to partner_id: \w+")
         self.assertRegex(rep, r"\nbase: /[^\n]*/res_users.py:\d+")
+        self.assertRegex(rep, r"\nbase:\n")
 
     def test_field_repr(self):
         self.assertRegex(
@@ -235,9 +247,8 @@ Written on 20..-..-.. ..:..:.. by u.demo""",
         self.assertCaptured(r"def has_group\(")
         self.assertNotCaptured(r"class BaseModel")
 
+    @slow
     def test_repr_all_models(self):
-        if not config.slow_tests:
-            self.skipTest("Slow tests disabled")
         for model in self.ns["env"]:
             self.assertIsInstance(model, odoo_repl.models.ModelProxy)
             self.assertTrue(odoo_repl.odoo_repr(model))
@@ -254,9 +265,8 @@ Written on 20..-..-.. ..:..:.. by u.demo""",
                     print("\n\nFailed on {}.{}\n".format(model._name, attr_name))
                     raise
 
+    @slow
     def test_repr_all_addons(self):
-        if not config.slow_tests:
-            self.skipTest("Slow tests disabled")
         for addon in self.ns["addons"]:
             self.assertIsInstance(addon, odoo_repl.addons.Addon)
             if addon.record.state == "uninstallable":
@@ -267,9 +277,8 @@ Written on 20..-..-.. ..:..:.. by u.demo""",
                 print("\n\nFailed on addons.{}\n".format(addon._module))
                 raise
 
+    @slow
     def test_repr_all_data(self):
-        if not config.slow_tests:
-            self.skipTest("Slow tests disabled")
         if odoo_repl.xml_thread:
             odoo_repl.xml_thread.join()
         for xml_id in odoo_repl.sources.xml_records.copy():
@@ -292,16 +301,14 @@ Written on 20..-..-.. ..:..:.. by u.demo""",
                 print("\n\nFailed on record {}\n".format(xml_id))
                 raise
 
+    @slow
     def test_repr_all_rules(self):
-        if not config.slow_tests:
-            self.skipTest("Slow tests disabled")
         with self.capture_stdout():
             for model in self.ns["env"]:
                 model.rules_()
 
+    @slow
     def test_print_all_menus(self):
-        if not config.slow_tests:
-            self.skipTest("Slow tests disabled")
         with self.capture_stdout():
             for model in self.ns["env"]:
                 model.menus_()

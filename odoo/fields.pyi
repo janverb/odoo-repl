@@ -29,7 +29,7 @@ class Field(Generic[T, Required]):
     model_name: str
     comodel_name: str
     type: str
-    string: Text
+    string: str
     relational: bool
     compute: object
     store: bool
@@ -40,6 +40,7 @@ class Field(Generic[T, Required]):
     related: Optional[Sequence[Text]]
     inverse_fields: Sequence[Field[Any, Any]]  # Only in older versions
     inverse_name: str  # Not always there
+    _module: Text  # Only in newer versions
     def __init__(self, *, required: bool = ...) -> None: ...
     @overload
     def __get__(self: AnyField, record: None, owner: Type[BaseModel]) -> AnyField: ...

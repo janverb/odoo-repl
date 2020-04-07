@@ -47,6 +47,11 @@ def model_repr(obj):
     max_len = max(len(f) for f in field_names) if field_names else 0
     parts = []
 
+    original_module = obj._module
+    for parent in type(obj).__bases__:
+        if getattr(parent, "_name", None) == obj._name:
+            original_module = getattr(parent, "_module", original_module)
+
     parts.append(color.header(obj._name))
     if obj._transient:
         parts[-1] += " (transient)"
@@ -80,11 +85,13 @@ def model_repr(obj):
         )
     )
     parts.extend(sources.format_docs(docs))
-    if docs:
-        parts.append("")
+
+    src = sources.find_source(obj)
+
+    by_module = collections.defaultdict(list)
     for field in field_names:
         f_obj = obj._fields[field]
-        parts.append(
+        rep = (
             color.blue.bold(_fmt_properties(f_obj))
             + " {}: ".format(color.field(field))
             # Like str.ljust, but not confused about colors
@@ -92,7 +99,25 @@ def model_repr(obj):
             + color.color_field(f_obj)
         )
         if not fields.has_auto_string(f_obj):
-            parts[-1] += u" ({})".format(f_obj.string)
+            rep += u" ({})".format(util.try_decode(f_obj.string))
+        f_module = sources.find_field_module(f_obj) or original_module
+        by_module[f_module].append(rep)
+
+    ordered_modules = [original_module]
+    for src_item in reversed(src):
+        if src_item.module not in ordered_modules:
+            ordered_modules.append(src_item.module)
+    for module in by_module:
+        if module not in ordered_modules:
+            ordered_modules.append(module)
+
+    for module in ordered_modules:
+        if module not in by_module:
+            continue
+        parts.append("")
+        parts.append("{}:".format(color.module(module)))
+        parts.extend(by_module[module])
+
     if delegated:
         buckets = collections.defaultdict(
             list
@@ -113,7 +138,7 @@ def model_repr(obj):
                 )
             )
     parts.append("")
-    parts.extend(sources.format_sources(sources.find_source(obj)))
+    parts.extend(sources.format_sources(src))
     return "\n".join(parts)
 
 
