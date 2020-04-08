@@ -82,7 +82,7 @@ def main(argv=sys.argv[1:]):
         line = f.readline().strip()
         assert line.startswith("#!")
         interp = line[2:].strip()
-        py2 = "python2" in interp
+        py2 = "python3" not in interp
 
     if args.interpreter:
         interp = args.interpreter
