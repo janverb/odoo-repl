@@ -200,4 +200,11 @@ class DataModuleBrowser(object):
             self._env, "SELECT name FROM ir_model_data WHERE module = %s", self._module
         )
 
+    def fzf_(self):
+        # type: () -> t.Optional[BaseModel]
+        res = fzf.fzf(dir(self))
+        if not res:
+            return None
+        return self[res[0]]
+
     _ipython_key_completions_ = __dir__
