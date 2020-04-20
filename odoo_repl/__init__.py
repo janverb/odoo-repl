@@ -121,12 +121,17 @@ def create_namespace(
             )
         odoo_print(translations)
 
+    def open_():
+        # type: () -> None
+        subprocess.Popen(["xdg-open", util.generate_url()])
+
     namespace = {
         "self": env.user,
         "odoo": odoo,
         "openerp": odoo,
         "sql": functools.partial(util.sql, env),
         "grep_": grep_,
+        "open_": open_,
         "translate": translate,
         "env": envproxy,
         "u": shorthand.UserBrowser(env),
