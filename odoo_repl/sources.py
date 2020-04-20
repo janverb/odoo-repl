@@ -119,6 +119,10 @@ def find_model_source(model):
         Source.from_cls(cls)
         for cls in type(model).__bases__
         if cls.__module__ not in {"odoo.api", "openerp.api"}
+        and (
+            (getattr(cls, "_name", None) or getattr(cls, "_inherit", None))
+            == model._name
+        )
     ]
 
 
