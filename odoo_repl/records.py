@@ -159,7 +159,8 @@ def search_(
         # Odoo will compute fields on many records at once even though you
         # won't use them
         query = "SELECT id FROM {}".format(self._table)
-        if "active" in self._fields:
+        if "active" in self._fields and not self._fields["active"].related:
+            # TODO: handle related active fields
             query += " WHERE active = true"
         all_ids = util.sql(self.env, query)
         shuf = min(shuf, len(all_ids))
