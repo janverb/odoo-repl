@@ -197,7 +197,7 @@ def field_repr(field, env=None):
         )
 
     if isinstance(field, odoo.fields.Selection):
-        parts.append(_format_selection_values(field))
+        parts.append(_format_selection_values(field, model))
 
     for constrainer in _find_constraint_methods(field, model):
         parts.append("Constrained by {}".format(_format_func(constrainer)))
@@ -351,8 +351,12 @@ def _find_inverse_names(field, env):
     return inverse_names
 
 
-def _format_selection_values(field):
-    # type: (odoo.fields.Selection[t.Any]) -> t.Text
+def _format_selection_values(field, model):
+    # type: (odoo.fields.Selection[t.Any], BaseModel) -> t.Text
+    if field.related:
+        field = model.env[model._fields[field.related[0]].comodel_name]._fields[
+            field.related[1]
+        ]
     if isinstance(field.selection, Text):
         return u"Values computed by {}".format(color.method(field.selection))
     elif callable(field.selection):
