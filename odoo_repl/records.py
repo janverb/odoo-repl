@@ -4,16 +4,10 @@ import random
 import subprocess
 
 import odoo_repl
-from odoo_repl.imports import t, BaseModel, Text, odoo
+from odoo_repl.imports import t, BaseModel, Text, TextLike, odoo
 from odoo_repl import color
 from odoo_repl import sources
 from odoo_repl import util
-
-FIELD_VALUE_BLACKLIST = {
-    # Showing these by default feels icky
-    "password",
-    "password_crypt",
-}
 
 
 def record_repr(obj):
@@ -35,7 +29,6 @@ def record_repr(obj):
         field
         for field in obj._fields
         if field not in odoo_repl.models.FIELD_BLACKLIST
-        and field not in FIELD_VALUE_BLACKLIST
         and not obj._fields[field].related
     )
     max_len = max(len(f) for f in field_names) if field_names else 0
@@ -99,6 +92,11 @@ def _color_repr(owner, field_name):
         obj = getattr(owner, field_name)  # type: object
     except Exception as err:
         return color.missing(type(err).__name__)
+    # We don't want to show passwords by default.
+    # But if it's not a string then it's either a missing value (which is fine
+    # to reveal) or a field that doesn't contain a password at all.
+    if obj and isinstance(obj, TextLike) and "pass" in field_name:
+        return color.missing("<censored>")
     field_type = owner._fields[field_name].type
     return color.color_value(obj, field_type)
 
