@@ -105,7 +105,13 @@ def create_namespace(
         paths = [
             odoo.modules.module.get_module_path(mod, display_warning=False)
             for mod in mods
+            # The `base` module is typically included inside the odoo module
+            # and we don't want to search it twice
+            # A more principled way to filter it out would be to check all
+            # addons for being a subdirectory of `odoo`
+            if mod != "base"
         ]
+        paths.append(os.path.dirname(odoo.__file__))
         argv.extend(filter(None, paths))
         subprocess.Popen(argv).wait()
 
