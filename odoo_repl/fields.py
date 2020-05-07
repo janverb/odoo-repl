@@ -12,7 +12,7 @@ from odoo_repl import gitsources
 from odoo_repl import methods
 from odoo_repl import sources
 from odoo_repl import util
-from odoo_repl.imports import t, odoo, Field, BaseModel, PY3, Text
+from odoo_repl.imports import t, odoo, Field, BaseModel, PY3, Text, cast
 
 
 class FieldProxy(object):
@@ -354,9 +354,12 @@ def _find_inverse_names(field, env):
 def _format_selection_values(field, model):
     # type: (odoo.fields.Selection[t.Any], BaseModel) -> t.Text
     if field.related:
-        field = model.env[model._fields[field.related[0]].comodel_name]._fields[
-            field.related[1]
-        ]
+        field = cast(
+            "odoo.fields.Selection[t.Any]",
+            model.env[model._fields[field.related[0]].comodel_name]._fields[
+                field.related[1]
+            ],
+        )
     if isinstance(field.selection, Text):
         return u"Values computed by {}".format(color.method(field.selection))
     elif callable(field.selection):
