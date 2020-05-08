@@ -512,6 +512,7 @@ class ModelProxy(object):
                 (name, attr)
                 for name, attr in sorted(vars(cls).items())
                 if callable(attr)
+                if name != "pool"
             ]
             if meths:
                 print()
