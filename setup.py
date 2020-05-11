@@ -11,11 +11,12 @@ setuptools.setup(
     version="0.0.1",
     author="Jan Verbeek",
     author_email="jverbeek@therp.nl",
-    description="Enhanced interactive Odoo buildout prompt",
+    description="Enhanced interactive Odoo shell",
     url="https://github.com/janverb/odoo-repl",
     packages=setuptools.find_packages(),
     package_data={"odoo_repl": ["py.typed"]},
-    entry_points={"console_scripts": ["odoo-repl = odoo_repl.run:main"]},
+    # It would be nice to make the script work with things besides buildout
+    entry_points={"console_scripts": ["odoo-repl = odoo_repl.buildout:main"]},
     install_requires=["Pygments"],
     license="LGPLv3+",
     classifiers=[
@@ -30,7 +31,7 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "Topic :: Software Development",
     ],
-    keywords="Odoo Interactive Shell Buildout",
+    keywords="Odoo Interactive Shell REPL",
     long_description=long_description,
     long_description_content_type="text/markdown",
 )

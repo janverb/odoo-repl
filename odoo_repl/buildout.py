@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""A wrapper script around python_odoo from the Odoo buildout recipe."""
 
 from __future__ import print_function
 

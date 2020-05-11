@@ -22,7 +22,7 @@ You can also use it to enhance `pdb`. Instead of setting a breakpoint with `impo
 
 ## Buildout
 
-If you use the [Odoo buildout recipe](http://docs.anybox.fr/anybox.recipe.odoo/current/) you can instead launch it using the `odoo-repl` wrapper script, which saves a little typing and is useful for older versions of Odoo that don't have the `shell` subcommand. The script is automatically installed when you install the module using `pip`.
+If you use the [Odoo buildout recipe](http://docs.anybox.fr/anybox.recipe.odoo/current/) you can instead launch it using the `odoo-repl` wrapper script, which invokes `python_odoo` and does the basic setup for you. The script is automatically installed when you install the module using `pip`.
 
 Run `odoo-repl` in the buildout directory to launch it. To pick a specific database, run `odoo-repl -d <database name>`.
 
