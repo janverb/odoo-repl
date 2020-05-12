@@ -4,7 +4,7 @@ It's compatible with Odoo 8 and upwards.
 
 # Installing
 
-This module is not on PyPI yet, but it can be installed with pip, by running `pip install <path to repository>`.
+The module can be installed with pip: `pip install odoo-repl`.
 
 # Running
 
