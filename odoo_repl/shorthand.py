@@ -25,6 +25,8 @@ class RecordBrowser(object):
 
     def __getattr__(self, attr):
         # type: (t.Text) -> BaseModel
+        if attr.startswith("_") and attr.endswith("_"):
+            raise AttributeError
         try:
             thing = (
                 self._env[self._model]

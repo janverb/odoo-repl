@@ -89,6 +89,20 @@ else:
     AnyModel = None
 
 
+try:
+    # Newer versions of jedi try to call OdooHook.is_package() during
+    # completion of our objects for reasons I haven't figured out yet.
+    # But is_package() doesn't exist. I think that's Jedi assuming too
+    # much and not Odoo not implementing PEP 302 correctly.
+    # The easiest thing to do is to fix it here.
+    # Technically we're breaking with PEP 302 here by not implementing
+    # get_code() and get_source() as well.
+    # AddonsHook exists too but it doesn't seem to cause problems.
+    odoo.modules.module.OdooHook.is_package = lambda _self, name: True  # type: ignore
+except AttributeError:
+    pass
+
+
 __all__ = (
     "MYPY",
     "PY3",
