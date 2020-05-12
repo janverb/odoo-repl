@@ -1,3 +1,16 @@
+"""A mypy plugin to typecheck Odoo code.
+
+It's tightly coupled to the stubs, and it's not suitable for typechecking Odoo
+addons yet.
+
+The main thing that would have to change to make it suitable for that is
+understanding Odoo's modules and inheritance. That might not be possible to do
+with a plugin, in which case mypy itself would have to be patched.
+
+But it servers odoo-repl's needs, and it could be reused in other projects that
+interface with Odoo but run outside it.
+"""
+
 import typing as t
 
 from collections import OrderedDict
