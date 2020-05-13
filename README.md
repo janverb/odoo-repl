@@ -96,6 +96,7 @@ You can find information about the default value, whether/how it's computed, and
 The same thing works for methods:
 
 ```pycon
+>>> res.currency.round
 @api.multi
 res.currency.round(self, amount)
 Return ``amount`` rounded  according to ``self``'s rounding rules.
