@@ -135,7 +135,8 @@ sys.exit(1 if result.errors or result.failures else 0)
         )
 
     if args.with_server:
-        cmd += """server = odoo.service.server.ThreadedServer(
+        cmd += """
+server = odoo.service.server.ThreadedServer(
     odoo.service.wsgi_server.application
 )
 server.start()
