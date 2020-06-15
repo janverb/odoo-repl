@@ -91,15 +91,7 @@ def model_repr(obj):
     by_module = collections.defaultdict(list)
     for field in field_names:
         f_obj = obj._fields[field]
-        rep = (
-            color.blue.bold(_fmt_properties(f_obj))
-            + " {}: ".format(color.field(field))
-            # Like str.ljust, but not confused about colors
-            + (max_len - len(field)) * " "
-            + color.color_field(f_obj)
-        )
-        if not fields.has_auto_string(f_obj):
-            rep += u" ({})".format(util.try_decode(f_obj.string))
+        rep = format_single_field(f_obj, max_len=max_len)
         f_module = sources.find_field_module(f_obj) or original_module
         by_module[f_module].append(rep)
 
@@ -140,6 +132,22 @@ def model_repr(obj):
     parts.append("")
     parts.extend(sources.format_sources(src))
     return "\n".join(parts)
+
+
+def format_single_field(field, max_len=None):
+    # type: (Field, t.Optional[int]) -> t.Text
+    if max_len is None:
+        max_len = len(field.name)
+    rep = (
+        color.blue.bold(_fmt_properties(field))
+        + " {}: ".format(color.field(field.name))
+        # Like str.ljust, but not confused about colors
+        + (max_len - len(field.name)) * " "
+        + color.color_field(field)
+    )
+    if not fields.has_auto_string(field):
+        rep += u" ({})".format(util.try_decode(field.string))
+    return rep
 
 
 def _fmt_properties(field):
