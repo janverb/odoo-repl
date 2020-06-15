@@ -32,6 +32,7 @@ class RecordBrowser(object):
                 self._env[self._model]
                 .with_context(active_test=False)
                 .search([(self._field, "=", attr)])
+                .with_context(self._env.context)
             )
         except AttributeError as err:
             if err.args == ("environments",) and not attr.startswith("_"):
