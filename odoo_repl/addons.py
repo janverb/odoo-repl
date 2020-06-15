@@ -82,6 +82,11 @@ class Addon(object):
         return self._record
 
     @property
+    def state(self):
+        # type: () -> t.Text
+        return self.record.state or "???"
+
+    @property
     def models(self):
         # type: () -> t.List[odoo_repl.models.ModelProxy]
         # XXX
