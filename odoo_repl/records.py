@@ -60,7 +60,11 @@ def record_repr(obj):
 
     # TODO: When .print_()ing a recordset we do want prefetching.
 
-    no_prefetch_obj = obj.with_context(odoo_repl=True)[:]
+    if isinstance(obj.id, odoo.models.NewId):
+        # Cache gets wonky if we start a new environment
+        no_prefetch_obj = obj
+    else:
+        no_prefetch_obj = obj.with_context(odoo_repl=True)[:]
 
     for field in field_names:
         parts.append(
