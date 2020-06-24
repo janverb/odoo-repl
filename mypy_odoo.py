@@ -218,6 +218,12 @@ def newmodel_hook(ctx: ClassDefContext) -> None:
     Unfortunately it doesn't work for narrowing down BaseModel, so it's only
     rarely useful. A workaround could be to automatically define a union of all
     defined models.
+
+    PEP 622 currently proposes @typing.sealed, which would mandate that all
+    subclasses of a class must be mandated in the same module. This should
+    resolve the problem for the current type stub setup, and may help with a
+    version of the plugin that can analyze actual Odoo code.
+    https://www.python.org/dev/peps/pep-0622/#sealed-classes-as-adts
     """
     dotted_name = []  # type: t.List[str]
     for char in ctx.cls.name:
