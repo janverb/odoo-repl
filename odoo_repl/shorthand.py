@@ -25,7 +25,7 @@ class RecordBrowser(object):
 
     def __getattr__(self, attr):
         # type: (t.Text) -> BaseModel
-        if attr.startswith("_") and attr.endswith("_"):
+        if attr.startswith("_") and attr.endswith("_") and attr != "__system__":
             raise AttributeError
         try:
             thing = (
