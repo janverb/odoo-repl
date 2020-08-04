@@ -336,9 +336,14 @@ class EnvProxy(object):
 
     def fzf_(self):
         # type: () -> t.Optional[models.ModelProxy]
-        result = fzf.fzf(sorted(self._env.registry))
+        result = fzf.fzf(
+            "{} ({})".format(model._name, model._description)
+            if model._description and model._description != model._name
+            else model._name
+            for model in self._env.registry.values()
+        )
         if result:
-            return self[result[0]]
+            return self[result[0].split()[0]]
         return None
 
 
