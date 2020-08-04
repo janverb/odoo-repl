@@ -162,6 +162,16 @@ class DataBrowser(object):
         # type: (t.Text) -> BaseModel
         return self._env.ref(query)
 
+    def fzf_(self):
+        # type: () -> t.Optional[BaseModel]
+        all_ids = util.sql(
+            self._env, "SELECT module || '.' || name FROM ir_model_data"
+        )
+        res = fzf.fzf(all_ids)
+        if not res:
+            return None
+        return self._env.ref(res[0])
+
 
 class DataModuleBrowser(object):
     """Access data records within a module. Created by DataBrowser."""
