@@ -138,6 +138,9 @@ def basic_render_record(obj, link=True):
     if len(obj._ids) == 1 and isinstance(obj.id, int) and link:
         return linkify_record("{}[{}]".format(obj._name, obj.id), obj)
 
+    if len(obj._ids) > 200:
+        return "{} × {}".format(obj._name, len(obj._ids))
+
     fragments = []  # type: t.List[t.Text]
     news = 0
     for ident in obj._ids:
