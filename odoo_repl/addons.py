@@ -183,6 +183,10 @@ class Addon(object):
         indirect -= direct
         return direct, indirect
 
+    def depends(self, other):
+        # type: (t.Text) -> bool
+        return other in self._get_depends()[1].mapped("name")
+
     def __repr__(self):
         # type: () -> str
         return str("{}({!r})".format(self.__class__.__name__, self._module))
