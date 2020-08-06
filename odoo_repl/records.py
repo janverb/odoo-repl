@@ -2,10 +2,12 @@ from __future__ import print_function
 
 import random
 import subprocess
+import sys
 
 import odoo_repl
 from odoo_repl.imports import t, BaseModel, Text, TextLike, odoo
 from odoo_repl import color
+from odoo_repl import grep
 from odoo_repl import sources
 from odoo_repl import util
 
@@ -308,3 +310,35 @@ def open_(self):
     # type: (BaseModel) -> None
     for record in self[:10]:
         subprocess.Popen(["xdg-open", util.link_for_record(record)])
+
+
+@util.patch(BaseModel)
+def grep_(record, *args, **kwargs):
+    # type: (BaseModel, object, object) -> None
+    """grep through all XML definitions of the record.
+
+    See help(odoo_repl.grep) for more information.
+
+    Note: because of technical limitations, formatting and line numbers don't
+    always match up.
+    """
+    import lxml.etree
+
+    argv = grep.build_grep_argv(args, kwargs)
+    for rec in record:
+        for rec_id in reversed(util.xml_ids(rec)):
+            for definition in sources.xml_records[rec_id]:
+                try:
+                    grep.partial_grep(
+                        argv,
+                        lxml.etree.tostring(definition.elem, encoding="unicode"),
+                        header=definition.fname,
+                        lnum=definition.elem.sourceline,
+                    )
+                except grep.BadCommandline as err:
+                    print(err, file=sys.stderr)
+                    return
+                except grep.NoResults:
+                    continue
+                else:
+                    print()

@@ -87,7 +87,6 @@ class MethodProxy(object):
         your fault.
         """
         argv = grep.build_grep_argv(args, kwargs)
-        first = True
         for cls in type(self.model).__mro__[1:]:
             if self.name in vars(cls):
                 func = util.unpack_function(vars(cls)[self.name])
@@ -99,10 +98,7 @@ class MethodProxy(object):
                 except grep.NoResults:
                     continue
                 else:
-                    if not first:
-                        print()
-                    else:
-                        first = False
+                    print()
 
 
 def _get_method_docs(model, name):

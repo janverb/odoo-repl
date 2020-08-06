@@ -32,7 +32,7 @@ import sys
 from odoo_repl import color
 from odoo_repl import config
 from odoo_repl import sources
-from odoo_repl.imports import t, PY3
+from odoo_repl.imports import t, PY3, Text
 
 
 def find_grep(default="grep"):
@@ -64,15 +64,19 @@ def build_grep_argv(args, kwargs, recursive=False):
     return argv
 
 
-def partial_grep(argv, thing):
-    # type: (t.Sequence[t.Union[bytes, t.Text]], t.Any) -> None
+def partial_grep(argv, thing, header=None, lnum=None):
+    # type: (t.Sequence[t.Union[bytes, t.Text]], t.Any, t.Any, t.Any) -> None
     """Simulate grepping through just part of a file."""
+    if isinstance(thing, Text):
+        lines = thing.split("\n")  # type: t.Sequence[t.Text]
+    else:
+        header = sources.getsourcefile(thing)
+        lines, lnum = inspect.getsourcelines(thing)
     # We mimic the output of ripgrep, which itself blends grep and ack
     # One difference is that ripgrep prints non-matching line numbers
     # with a dash following the number instead of a colon
-    lines, lnum = inspect.getsourcelines(thing)
     proc_input = "".join(
-        "{}:{}".format(color.green(str(lnum + ind)), line)
+        "{}:{}\n".format(color.green(str(lnum + ind)), line.rstrip("\n"))
         for ind, line in enumerate(lines)
     )
     # First we do a test run just to see if there are results
@@ -103,7 +107,7 @@ def partial_grep(argv, thing):
                 raise BadCommandline(error)
             raise NoResults
 
-    print(color.purple(sources.getsourcefile(thing)))
+    print(color.purple(header))
     proc = subprocess.Popen(argv, stdin=subprocess.PIPE, universal_newlines=True)
     assert proc.stdin is not None
     proc.stdin.write(proc_input)
