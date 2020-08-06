@@ -172,6 +172,17 @@ def find_field_module(field):
     return None
 
 
+def find_field_modules(field):
+    # type: (Field) -> t.Set[t.Text]
+    modules = set()
+    for cls in reversed(type(util.env[field.model_name]).__mro__):
+        if field.name in getattr(cls, "_columns", ()) or field.name in vars(cls):
+            module = getattr(cls, "_module", None)  # type: t.Optional[t.Text]
+            if module and cls.__module__ not in {"odoo.api", "openerp.api"}:
+                modules.add(module)
+    return modules
+
+
 def find_method_source(method):
     # type: (odoo_repl.methods.MethodProxy) -> t.List[Source]
     res = []

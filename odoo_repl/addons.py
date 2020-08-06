@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 from __future__ import unicode_literals
 
 import subprocess
@@ -8,6 +9,8 @@ import odoo_repl
 from odoo_repl import color
 from odoo_repl import gitsources
 from odoo_repl import grep
+from odoo_repl import methods
+from odoo_repl import models
 from odoo_repl import records
 from odoo_repl import shorthand
 from odoo_repl import sources
@@ -197,6 +200,89 @@ class Addon(object):
             printer.text(addon_repr(self))
         else:
             printer.text(repr(self))
+
+    def definitions_(self):
+        # type: () -> None
+        """High-level summary of the module's contents."""
+        # There's duplication here with models.model_repr and
+        # ModelProxy.methods_() and so on
+
+        if self.state in {"uninstalled", "uninstallable"}:
+            print(color.missing("Module not installed"))
+            return
+
+        model_names = sorted(
+            set(
+                self._env["ir.model"]
+                .browse(
+                    self._env["ir.model.data"]
+                    .search([("model", "=", "ir.model"), ("module", "=", self._module)])
+                    .mapped("res_id")
+                )
+                .mapped("model")
+            )
+        )
+        data = sorted(
+            self._env["ir.model.data"].search(
+                [
+                    ("module", "=", self._module),
+                    ("model", "not in", ("ir.model", "ir.model.fields")),
+                ]
+            ),
+            key=lambda rec: (rec.model, rec.name),
+        )
+
+        for model_name in model_names:
+            try:
+                model = self._env[model_name]
+            except KeyError:
+                continue
+
+            classes = [
+                cls
+                for cls in type(model).__mro__
+                if getattr(cls, "_module", None) == self._module
+            ]
+            if not classes:
+                continue
+
+            print(color.model(model_name))
+
+            fields = sorted(
+                (
+                    field
+                    for field in model._fields.values()
+                    if field.name not in models.FIELD_BLACKLIST
+                    if self._module in sources.find_field_modules(field)
+                ),
+                key=lambda field: field.name,
+            )
+            if fields:
+                max_len = max(len(field.name) for field in fields)
+                for field in fields:
+                    print(models.format_single_field(field, max_len=max_len))
+
+            for cls in classes:
+                meths = [
+                    (name, attr)
+                    for name, attr in sorted(vars(cls).items())
+                    if util.loosely_callable(attr) and name != "pool"
+                ]
+                for name, meth in meths:
+                    print(
+                        color.method(name)
+                        + methods._func_signature(util.unpack_function(meth))
+                    )
+
+            print()
+
+        if data:
+            print(color.subheader("Records:"))
+        for rec in data:
+            print(
+                color.record("{}[{}]".format(rec.model, rec.res_id)),
+                "({})".format(rec.name),
+            )
 
 
 def addon_repr(addon):

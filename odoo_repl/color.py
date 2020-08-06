@@ -48,6 +48,7 @@ method = yellow.bold
 display_name = bold
 permission = purple.bold
 decorator = blue.bold
+subheader = bold
 
 string = blue.bold
 number = purple.bold

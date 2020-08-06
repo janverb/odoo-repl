@@ -258,6 +258,12 @@ def with_user(record, user):
     return record.sudo(user)
 
 
+def loosely_callable(obj):
+    # type: (object) -> bool
+    """Like callable(), but tolerates classmethods and staticmethods."""
+    return callable(obj) or isinstance(obj, (classmethod, staticmethod))
+
+
 if PY3:
 
     def try_decode(text):
