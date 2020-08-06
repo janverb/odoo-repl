@@ -1,5 +1,8 @@
 """Functions for finding and displaying access rules."""
 
+# TODO:
+# - display overrides of _check_access_rule, etc.
+
 from __future__ import unicode_literals
 
 import pprint
