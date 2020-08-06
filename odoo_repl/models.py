@@ -468,7 +468,7 @@ class ModelProxy(object):
                 ),
                 pretty_print=True,
                 encoding="unicode",
-            )
+            ).replace("&#10;", "\n")
         print(color.highlight(form, "xml"))
 
     def sql_(self):
