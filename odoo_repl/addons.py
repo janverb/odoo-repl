@@ -207,6 +207,11 @@ def addon_repr(addon):
     # - Put it at the bottom instead
     # - Don't show the README by default
 
+    try:
+        addon.manifest
+    except RuntimeError:
+        return repr(addon)
+
     defined_models = (
         addon._env["ir.model"]
         .browse(
