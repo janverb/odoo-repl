@@ -135,6 +135,7 @@ def _repr_pretty_(self, printer, _cycle):
         printer.text(repr(self))
 
 
+# Why is this on BaseModel?
 @util.patch(BaseModel)
 def search_(
     self,  # type: t.Union[BaseModel, odoo_repl.models.ModelProxy]
@@ -342,3 +343,10 @@ def grep_(record, *args, **kwargs):
                     continue
                 else:
                     print()
+
+
+@util.patch(BaseModel)
+def shuf_(record, num=1):
+    # type: (odoo.models.AnyModel, int) -> odoo.models.AnyModel
+    num = min(len(record), num)
+    return record.browse(random.sample(record._ids, num))
