@@ -164,9 +164,7 @@ class DataBrowser(object):
 
     def fzf_(self):
         # type: () -> t.Optional[BaseModel]
-        all_ids = util.sql(
-            self._env, "SELECT module || '.' || name FROM ir_model_data"
-        )
+        all_ids = util.sql(self._env, "SELECT module || '.' || name FROM ir_model_data")
         res = fzf.fzf(all_ids)
         if not res:
             return None
