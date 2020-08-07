@@ -5,20 +5,35 @@ from odoo_repl import util
 from odoo_repl.imports import AnyModel, BaseModel, t, Unicode
 
 
+def _fzf(vals, flags=()):
+    # type: (t.Iterable[t.Text], t.Iterable[str]) -> t.Optional[t.List[t.Text]]
+    argv = ["fzf", "--read0", "--print0"]
+    argv.extend(flags)
+    encoded = b"\0".join(val.encode("utf8") for val in vals)
+    proc = Popen(argv, stdin=PIPE, stdout=PIPE)
+    output, _ = proc.communicate(input=encoded)
+    if proc.returncode != 0:
+        # A noisy traceback isn't appropriate here
+        return None
+    results = output.decode("utf8").split("\0")
+    assert not results[-1]
+    results.pop()
+    return results
+
+
 def fzf(vals):
     # type: (t.Iterable[t.Text]) -> t.Optional[t.List[t.Text]]
     """Call fzf to narrow down a list of strings."""
-    encoded = b"\0".join(val.encode("utf8") for val in vals)
-    proc = Popen(["fzf", "--read0", "--print0"], stdin=PIPE, stdout=PIPE)
-    assert proc.stdin
-    assert proc.stdout
-    proc.stdin.write(encoded)
-    proc.stdin.close()
-    return_code = proc.wait()
-    if return_code != 0:
-        # A noisy traceback isn't appropriate here
+    return _fzf(vals, ["-m"])
+
+
+def fzf_single(vals):
+    # type: (t.Iterable[t.Text]) -> t.Optional[t.Text]
+    """Call fzf to narrow down a list of strings to a single choice."""
+    result = _fzf(vals)
+    if result is None:
         return None
-    return proc.stdout.read().decode("utf8").strip("\0").split("\0")
+    return result[0]
 
 
 @util.patch(BaseModel, "fzf_")

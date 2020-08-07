@@ -165,10 +165,10 @@ class DataBrowser(object):
     def fzf_(self):
         # type: () -> t.Optional[BaseModel]
         all_ids = util.sql(self._env, "SELECT module || '.' || name FROM ir_model_data")
-        res = fzf.fzf(all_ids)
+        res = fzf.fzf_single(all_ids)
         if not res:
             return None
-        return self._env.ref(res[0])
+        return self._env.ref(res)
 
 
 class DataModuleBrowser(object):
@@ -213,9 +213,9 @@ class DataModuleBrowser(object):
 
     def fzf_(self):
         # type: () -> t.Optional[BaseModel]
-        res = fzf.fzf(dir(self))
+        res = fzf.fzf_single(dir(self))
         if not res:
             return None
-        return self[res[0]]
+        return self[res]
 
     _ipython_key_completions_ = __dir__
