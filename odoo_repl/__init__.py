@@ -230,14 +230,28 @@ def odoo_print(obj, **kwargs):
         print(odoo_repr(obj), **kwargs)
 
 
+def _edit(fname, lnum=None, bg=None):
+    # type: (object, t.Optional[int], t.Optional[bool]) -> None
+    if bg is None:
+        bg = config.bg_editor
+    argv = list(config.editor)
+    if lnum is not None:
+        argv.append("+{}".format(lnum))
+    argv.append(str(fname))
+    if bg:
+        # os.setpgrp avoids KeyboardInterrupt/SIGINT
+        # pylint: disable=subprocess-popen-preexec-fn
+        subprocess.Popen(argv, preexec_fn=os.setpgrp)
+    else:
+        subprocess.Popen(argv).wait()
+
+
 @util.patch(Field, "edit_")
 @util.patch(BaseModel, "edit_")
 def edit(thing, index=0, bg=None):
     # type: (sources.Sourceable, t.Union[int, t.Text], t.Optional[bool]) -> None
     """Open a model or field definition in an editor."""
     # TODO: editor kwarg and/or argparse flag
-    if bg is None:
-        bg = config.bg_editor
     src = sources.find_source(thing)
     if not src:
         raise RuntimeError("Can't find source file!")
@@ -254,16 +268,7 @@ def edit(thing, index=0, bg=None):
             raise RuntimeError("Can't find match for module {!r}".format(index))
     else:
         raise TypeError(index)
-    argv = list(config.editor)
-    if lnum is not None:
-        argv.append("+{}".format(lnum))
-    argv.append(str(fname))
-    if bg:
-        # os.setpgrp avoids KeyboardInterrupt/SIGINT
-        # pylint: disable=subprocess-popen-preexec-fn
-        subprocess.Popen(argv, preexec_fn=os.setpgrp)
-    else:
-        subprocess.Popen(argv).wait()
+    return _edit(fname, lnum=lnum, bg=bg)
 
 
 def displayhook(obj):
