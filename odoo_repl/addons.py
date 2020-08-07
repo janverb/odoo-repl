@@ -142,6 +142,10 @@ class Addon(object):
         # type: () -> None
         records.open_(self.record)
 
+    def edit_(self):
+        # type: () -> None
+        odoo_repl._edit(self.path)
+
     def _get_depends(self):
         # type: () -> t.Tuple[odoo.models.IrModuleModule, odoo.models.IrModuleModule]
         direct = (
