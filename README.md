@@ -171,7 +171,11 @@ Models have a method called `_` that works as a more flexible version of `search
 
 Let's say that you want to find the `res.country` record for Belgium. Normally you'd have to write `env['res.country'].search([("name", "=", "Belgium")])`, which is pretty verbose. The shortest way to write it with `odoo-repl` is `res.country._(name="Belgium")`.
 
-This spelling doesn't work for operators that aren't `=`. But you can still save a little typing. To find all countries that *aren't* Belgium, use `res.country._("name", "!=", "Belgium")`.
+You can use another operator by putting its name after a double underscore (`__`). To find all countries that *aren't* Belgium, use `res.country._(name__ne="Belgium")`.
+
+The same trick can be used for dotted paths across relations: `res.users._(partner_id__name="Mitchell Admin")`.
+
+Alternatively you can write it as a flat list of arguments without any brackets, i.e. `res.users._("partner_id.name", "=", "Mitchell Admin")`.
 
 When using records in a `.search()` domain you have to explicitly take the ID of the record instead of passing the record. `._()` doesn't need that, so `res.partner._(country_id=ref.base.be)` will just work.
 

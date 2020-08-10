@@ -3,6 +3,34 @@ import random
 from odoo_repl.imports import t, BaseModel, Text
 from odoo_repl import util
 
+# Map identifier-friendly names to the operators Odoo understands
+# Adapted from odoo.osv.expression.TERM_OPERATORS with a few omissions
+OPERATORS = {
+    "eq": "=",
+    "ne": "!=",
+    "le": "<=",
+    "lt": "<",
+    "gt": ">",
+    "ge": ">=",
+    "like": "like",
+    "ilike": "ilike",
+    "not_like": "not like",
+    "notlike": "not like",
+    "not_ilike": "not ilike",
+    "notilike": "not ilike",
+    "in": "in",
+    "not_in": "not in",
+    "notin": "not in",
+    "child_of": "child_of",
+    "childof": "child_of",
+    "parent_of": "parent_of",
+    "parentof": "parent_of",
+}
+# There's also a "=?" operator but virtually nothing uses it
+# It's always true if its right operand is False or None
+# It's really weird and probably not all that useful when working interactively
+# Plus I don't know what to name it
+
 
 def search(
     model,  # type: BaseModel
@@ -73,7 +101,20 @@ def _parse_search_query(
         raise ValueError(
             "Couldn't divide into leaves: {!r}".format(clauses + [tuple(curr)])
         )
-    clauses.extend((k, "=", v) for k, v in field_vals.items())
+
+    for key, value in field_vals.items():
+        # Double underscore splitting, inspired by Django's ORM:
+        # https://docs.djangoproject.com/en/3.0/topics/db/queries/#field-lookups
+        # https://docs.djangoproject.com/en/3.0/ref/models/querysets/#field-lookups
+        # Unfortunately I've never used Django so this could be different in
+        # pointless or harmful ways
+        # This ruins searches on the __last_update field, but that may be ok
+        components = key.split("__")
+        if len(components) > 1 and components[-1] in OPERATORS:
+            operator = OPERATORS[components.pop()]
+        else:
+            operator = "="
+        clauses.append((".".join(components), operator, value))
 
     def to_id(thing):
         # type: (object) -> t.Any

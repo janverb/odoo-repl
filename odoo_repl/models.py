@@ -624,6 +624,9 @@ class ModelProxy(object):
 
         ._(x='test', y=<some record>) is roughly equivalent to
         .search([('x', '=', 'test'), ('y', '=', <some record>.id)]).
+
+        ._(x__y__ne='test') is equivalent to .search([('x.y', '!=', 'test')]).
+
         ._() gets all records.
         """
         assert self._real is not None
