@@ -10,7 +10,7 @@ from odoo_repl import color
 from odoo_repl import fields
 from odoo_repl import grep
 from odoo_repl import methods
-from odoo_repl import records
+from odoo_repl import search
 from odoo_repl import sources
 from odoo_repl import util
 from odoo_repl.imports import abc, odoo, t, cast, Field, PY3, Text, BaseModel
@@ -389,7 +389,7 @@ class ModelProxy(object):
         # type: (int) -> BaseModel
         """Return a random record, or multiple."""
         assert self._real is not None
-        return records.search_(self._real, shuf=num)
+        return search.search(self._real, (), {"shuf": num})
 
     def source_(self, location=None):
         # type: (t.Optional[t.Text]) -> None
@@ -620,8 +620,14 @@ class ModelProxy(object):
 
     def _(self, *args, **kwargs):
         # type: (t.Any, t.Any) -> t.Any
+        """Perform a quick and dirty search.
+
+        ._(x='test', y=<some record>) is roughly equivalent to
+        .search([('x', '=', 'test'), ('y', '=', <some record>.id)]).
+        ._() gets all records.
+        """
         assert self._real is not None
-        return self._real.search_(*args, **kwargs)  # type: ignore
+        return search.search(self._real, args, kwargs)
 
 
 def _to_user(
