@@ -31,6 +31,8 @@ OPERATORS = {
 # It's really weird and probably not all that useful when working interactively
 # Plus I don't know what to name it
 
+PLURAL_OPERATORS = {"in", "not_in", "notin"}
+
 
 def search(
     model,  # type: BaseModel
@@ -116,14 +118,16 @@ def _parse_search_query(
             operator = "="
         clauses.append((".".join(components), operator, value))
 
-    def to_id(thing):
-        # type: (object) -> t.Any
+    def to_id(thing, plural=False):
+        # type: (object, bool) -> t.Any
         if isinstance(thing, tuple):
-            return tuple(map(to_id, thing))
+            assert len(thing) == 3
+            left, op, right = thing
+            return (left, op, to_id(right, plural=op in PLURAL_OPERATORS))
         elif isinstance(thing, list):
             return list(map(to_id, thing))
         elif isinstance(thing, BaseModel):
-            if len(thing) == 1:
+            if not plural and len(thing) == 1:
                 return thing.id
             return thing.ids
         return thing
