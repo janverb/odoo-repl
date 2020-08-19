@@ -5,6 +5,8 @@ import collections
 import inspect
 import subprocess
 
+import odoo_repl
+
 from odoo_repl import access
 from odoo_repl import color
 from odoo_repl import fields
@@ -617,6 +619,11 @@ class ModelProxy(object):
                 print(header)
                 print_act(action, link=False)
                 print()
+
+    def print_(self, **kwargs):
+        # type: (t.Any) -> None
+        """Print all records. Shortcut for `._().print_()`."""
+        odoo_repl.odoo_print(self._(), **kwargs)
 
     def _(self, *args, **kwargs):
         # type: (t.Any, t.Any) -> t.Any
