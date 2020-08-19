@@ -107,12 +107,13 @@ def xml_id_tag(obj):
 def unpack_function(func):
     # type: (t.Any) -> t.Callable[..., t.Any]
     """Remove wrappers to get the real function."""
-    while hasattr(func, "_orig"):
-        func = func._orig
-    while hasattr(func, "__wrapped__"):
-        func = func.__wrapped__
-    if hasattr(func, "__func__"):
-        func = func.__func__
+    while True:
+        for attr in "_orig", "__wrapped__", "__func__":
+            if hasattr(func, attr):
+                func = getattr(func, attr)
+                break
+        else:
+            break
     return func  # type: ignore
 
 

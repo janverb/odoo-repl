@@ -121,7 +121,7 @@ def method_repr(methodproxy):
     try:
         src = sources.find_method_source(methodproxy)
         signature = _func_signature(method)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, IOError):
         return repr(methodproxy._real)
 
     docs = _get_method_docs(model, name)
