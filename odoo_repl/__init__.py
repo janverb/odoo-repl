@@ -225,7 +225,12 @@ def odoo_repr(obj):
 def odoo_print(obj, **kwargs):
     # type: (t.Any, t.Any) -> None
     if util.is_record(obj) and len(obj) > 1:
-        print("\n\n".join(records.record_repr(record) for record in obj), **kwargs)
+        first = True
+        for record in obj:
+            if not first:
+                print()
+            first = False
+            print(records.record_repr(record), **kwargs)
     else:
         print(odoo_repr(obj), **kwargs)
 
