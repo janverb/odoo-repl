@@ -8,7 +8,7 @@ with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
 
 setuptools.setup(
     name="odoo-repl",
-    version="0.0.2",
+    version="0.0.3",
     author="Jan Verbeek",
     author_email="jverbeek@therp.nl",
     description="Enhanced interactive Odoo shell",
