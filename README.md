@@ -451,3 +451,5 @@ These objects have a few useful methods and attributes. The `manifest` attribute
 `.open_()` opens the module in the web interface in your browser.
 
 `.grep_()` and `.gitsource_()` are supported.
+
+`.definitions_()` prints a listing of every model, field, method and record defined in the addon.
