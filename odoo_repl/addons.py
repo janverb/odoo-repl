@@ -191,7 +191,9 @@ class Addon(object):
         return direct, indirect
 
     def depends(self, other):
-        # type: (t.Text) -> bool
+        # type: (t.Union[t.Text, Addon]) -> bool
+        if isinstance(other, Addon):
+            other = other._module
         return other in self._get_depends()[1].mapped("name")
 
     def __repr__(self):
