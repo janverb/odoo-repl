@@ -330,11 +330,21 @@ class ModelProxy(object):
             printer.text(repr(self))
 
     def __getitem__(self, ind):
-        # type: (t.Union[t.Iterable[int], t.Text, int]) -> t.Any
+        # type: (t.Union[t.Iterable[int], t.Text, int, slice]) -> t.Any
         if self._real is None:
             raise KeyError("Model '{}' does not exist".format(self._path))
         if not ind:
             return self._real
+        ignore_missing = False
+        if isinstance(ind, slice):
+            max_id = util.sql(
+                self._env,
+                'SELECT id FROM "{}" ORDER BY id DESC LIMIT 1'.format(
+                    self._real._table
+                ),
+            )[0]
+            ind = list(range(max_id + 1)[ind])
+            ignore_missing = True
         if isinstance(ind, Text):
             if ind in self._real._fields:
                 return fields.FieldProxy(self._env, self._real._fields[ind])
@@ -358,9 +368,12 @@ class ModelProxy(object):
         )
         missing = set(ind) - real_ind
         if missing:
-            raise KeyError(
-                "Records {} do not exist".format(", ".join(map(str, missing)))
-            )
+            if ignore_missing:
+                ind = sorted(real_ind)
+            else:
+                raise KeyError(
+                    "Records {} do not exist".format(", ".join(map(str, missing)))
+                )
         return self._real.browse(ind)
 
     def _ipython_key_completions_(self):
