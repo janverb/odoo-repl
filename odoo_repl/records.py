@@ -109,19 +109,22 @@ def _color_repr(owner, field_name):
 
 def _get_create_write_history(obj):
     # type: (BaseModel) -> t.List[str]
-    if "create_date" not in obj._fields:
-        return []
     history_lines = []
     obj = obj.sudo()
-    if obj.create_date:
-        create_msg = "Created on {}".format(color.format_date(obj.create_date))
-        if obj.create_uid and obj.create_uid.id != 1:
-            create_msg += " by {}".format(color.render_user(obj.create_uid))
+    # It's rare but possible for a model to lack these fields
+    create_date = getattr(obj, "create_date", False)
+    write_date = getattr(obj, "write_date", False)
+    create_uid = getattr(obj, "create_uid", False)
+    write_uid = getattr(obj, "write_uid", False)
+    if create_date:
+        create_msg = "Created on {}".format(color.format_date(create_date))
+        if create_uid and create_uid.id != 1:
+            create_msg += " by {}".format(color.render_user(create_uid))
         history_lines.append(create_msg)
-    if obj.write_date and obj.write_date != obj.create_date:
-        write_msg = "Written on {}".format(color.format_date(obj.write_date))
-        if obj.write_uid and obj.write_uid.id != 1:
-            write_msg += " by {}".format(color.render_user(obj.write_uid))
+    if write_date and write_date != create_date:
+        write_msg = "Written on {}".format(color.format_date(write_date))
+        if write_uid and write_uid.id != 1:
+            write_msg += " by {}".format(color.render_user(write_uid))
         history_lines.append(write_msg)
     return history_lines
 
