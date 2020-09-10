@@ -336,14 +336,14 @@ class ModelProxy(object):
         if not ind:
             return self._real
         ignore_missing = False
-        if isinstance(ind, slice):
+        if isinstance(ind, slice) or isinstance(ind, int) and ind < 0:
             max_id = util.sql(
                 self._env,
                 'SELECT id FROM "{}" ORDER BY id DESC LIMIT 1'.format(
                     self._real._table
                 ),
             )[0]
-            ind = list(range(max_id + 1)[ind])
+            ind = range(max_id + 1)[ind]
             ignore_missing = True
         if isinstance(ind, Text):
             if ind in self._real._fields:
