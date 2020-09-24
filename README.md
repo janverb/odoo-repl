@@ -433,7 +433,7 @@ This module was written to  allow you to call code with some `uid` while being s
 
 In addition to the contents of the `README`, you see its dependencies, the modules that depend on it, the models it defines, a link to it in the web interface, and its location in the filesystem.
 
-These objects have a few useful methods and attributes. The `manifest` attribute gives you the addon's manifest:
+These objects have a few useful methods and attributes. The `.manifest` attribute gives you the addon's manifest:
 
 ```pycon
 >>> addons.base_suspend_security.manifest
@@ -446,7 +446,7 @@ These objects have a few useful methods and attributes. The `manifest` attribute
 '12.0.1.0.1'
 ```
 
-`record` gives you the `ir.module.module` record of the addon.
+`.record` gives you the `ir.module.module` record of the addon.
 
 `.open_()` opens the module in the web interface in your browser.
 
