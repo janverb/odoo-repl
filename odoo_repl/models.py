@@ -436,6 +436,17 @@ class ModelProxy(object):
             access.rule_repr(rule)
             for rule in access.rules_for_model(self._env, model_record, user)
         )
+
+        check_access_rights = self["check_access_rights"]
+        assert isinstance(check_access_rights, methods.MethodProxy)
+        if len(sources.find_method_source(check_access_rights)) > 1:
+            parts.append(methods.method_repr(check_access_rights, {"BaseModel"}))
+
+        check_access_rule = self["check_access_rule"]
+        assert isinstance(check_access_rule, methods.MethodProxy)
+        if len(sources.find_method_source(check_access_rule)) > 1:
+            parts.append(methods.method_repr(check_access_rule, {"BaseModel"}))
+
         print("\n\n".join(parts))
 
     def view_(

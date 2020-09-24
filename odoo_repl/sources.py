@@ -106,9 +106,13 @@ def format_source(source):
         return "{}: {}".format(color.module(module), fname)
 
 
-def format_sources(sourcelist):
-    # type: (t.Iterable[Source]) -> t.List[t.Text]
-    return [format_source(source) for source in sourcelist]
+def format_sources(sourcelist, ignore_modules=()):
+    # type: (t.Iterable[Source], t.Container[t.Text]) -> t.List[t.Text]
+    return [
+        format_source(source)
+        for source in sourcelist
+        if source.module not in ignore_modules
+    ]
 
 
 def find_model_source(model):
@@ -309,10 +313,12 @@ def find_docs(things):
             yield name, doc
 
 
-def format_docs(docs):
-    # type: (t.Iterable[t.Tuple[str, t.Text]]) -> t.Iterable[t.Text]
+def format_docs(docs, ignore_modules=()):
+    # type: (t.Iterable[t.Tuple[str, t.Text]], t.Container[str]) -> t.Iterable[t.Text]
     docs = list(docs)
     for module, doc in docs:
+        if module in ignore_modules:
+            continue
         doc = color.highlight(doc, "rst")
         if len(docs) == 1:
             yield doc

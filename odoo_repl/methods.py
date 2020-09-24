@@ -110,8 +110,8 @@ def _get_method_docs(model, name):
     )
 
 
-def method_repr(methodproxy):
-    # type: (MethodProxy) -> t.Text
+def method_repr(methodproxy, ignore_modules=()):
+    # type: (MethodProxy, t.Container[str]) -> t.Text
     model = methodproxy.model
     name = methodproxy.name
 
@@ -119,7 +119,11 @@ def method_repr(methodproxy):
     decorators = list(_find_decorators(method))
     method = util.unpack_function(method)
     try:
-        src = sources.find_method_source(methodproxy)
+        src = [
+            source
+            for source in sources.find_method_source(methodproxy)
+            if source.module not in ignore_modules
+        ]
         signature = _func_signature(method)
     except (TypeError, ValueError, IOError):
         return repr(methodproxy._real)
@@ -132,9 +136,9 @@ def method_repr(methodproxy):
             model=color.model(model._name), name=color.method(name), signature=signature
         )
     )
-    parts.extend(sources.format_docs(docs))
+    parts.extend(sources.format_docs(docs, ignore_modules=ignore_modules))
     parts.append("")
-    parts.extend(sources.format_sources(src))
+    parts.extend(sources.format_sources(src, ignore_modules=ignore_modules))
     return "\n".join(parts)
 
 
