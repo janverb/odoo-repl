@@ -148,7 +148,7 @@ def create_(
     """Create a new record, optionally with keyword arguments.
 
     .create_(x='test', y=<some record>) is typically equivalent to
-    .create({"x": "test", "y": <some record>id}). 2many fields are also
+    .create({"x": "test", "y": <some record>.id}). 2many fields are also
     handled.
 
     If you make a typo in a field name you get a proper error.
