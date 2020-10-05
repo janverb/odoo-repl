@@ -84,7 +84,6 @@ def main(argv=sys.argv[1:]):
         line = f.readline().strip()
         assert line.startswith("#!")
         interp = line[2:].strip()
-        py2 = "python3" not in interp
 
     if args.interpreter:
         interp = args.interpreter
@@ -93,18 +92,11 @@ def main(argv=sys.argv[1:]):
         # $PYTHONSTARTUP isn't read when executing a file, but if you have one
         # then you probably want to use it when running this script, so load
         # it manually
-        if py2:
-            cmd = """with open({!r}) as f:
-    exec f.read()
-""".format(
-                os.environ["PYTHONSTARTUP"]
-            )
-        else:
-            cmd = """with open({!r}) as f:
+        cmd = """with open({!r}) as f:
     exec(f.read(), globals(), locals())
 """.format(
-                os.environ["PYTHONSTARTUP"]
-            )
+            os.environ["PYTHONSTARTUP"]
+        )
     else:
         cmd = ""
 
@@ -146,13 +138,7 @@ server.start()
     # It doesn't enable Python 3's readline enhancements, for example
     # So use Python's own -i flag instead
     if args.ipython:
-        original_interp = interp
-        interp = "ipython" if py2 else "ipython3"
-        # Detect IPython if it's installed in the same virtualenv as Odoo
-        maybe_interp = os.path.join(os.path.dirname(original_interp), interp)
-        if os.path.isfile(maybe_interp):
-            interp = maybe_interp
-        argv = [interp, "--no-banner"]
+        argv = [interp, "-m", "IPython", "--no-banner"]
     else:
         argv = [interp]
     if not args.no_interactive and not args.run_tests:
