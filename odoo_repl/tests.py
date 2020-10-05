@@ -135,7 +135,8 @@ base: /[^\n]*/res_partner.py:\d+$""",
             [(True, "demo")],
         )
         self.assertEqual(
-            self.sql("SELECT login FROM res_users WHERE login = %s", "demo"), ["demo"],
+            self.sql("SELECT login FROM res_users WHERE login = %s", "demo"),
+            ["demo"],
         )
         with self.assertRaises(PGSyntaxError):
             self.sql("FOO")
@@ -210,7 +211,8 @@ Defines: [^\n]*, res.users, """,
     def test_create_write_info(self):
         demo = self.env["res.users"].search([("login", "=", "demo")])
         self.assertRegex(
-            odoo_repr(demo), "Created on 20..-..-.. ..:..:..",
+            odoo_repr(demo),
+            "Created on 20..-..-.. ..:..:..",
         )
         util.with_user(demo.partner_id, demo).write({"website": "blargh"})
         self.assertRegex(

@@ -100,7 +100,8 @@ def create_namespace(
         """
         argv = grep.build_grep_argv(args, kwargs, recursive=True)
         mods = util.sql(
-            env, "SELECT name FROM ir_module_module WHERE state = 'installed'",
+            env,
+            "SELECT name FROM ir_module_module WHERE state = 'installed'",
         )
         paths = [
             odoo.modules.module.get_module_path(mod, display_warning=False)
@@ -151,7 +152,8 @@ def create_namespace(
 
     if not sources.xml_records:
         modules = util.sql(
-            env, "SELECT name, demo FROM ir_module_module WHERE state = 'installed'",
+            env,
+            "SELECT name, demo FROM ir_module_module WHERE state = 'installed'",
         )
         xml_thread = threading.Thread(
             target=lambda: sources.populate_xml_records(modules)

@@ -48,7 +48,9 @@ def main(argv=sys.argv[1:]):
         help="Immediately quit odoo-repl after starting",
     )
     parser.add_argument(
-        "--run-tests", action="store_true", help="Run tests, then exit",
+        "--run-tests",
+        action="store_true",
+        help="Run tests, then exit",
     )
     parser.add_argument(
         "-s",
