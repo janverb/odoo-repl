@@ -165,19 +165,19 @@ def unwrap(obj):
 
 
 @overload  # noqa: F811
-def unwrap(obj):
+def unwrap(obj):  # noqa: F811
     # type: (odoo_repl.fields.FieldProxy) -> Field
     pass
 
 
 @overload  # noqa: F811
-def unwrap(obj):
+def unwrap(obj):  # noqa: F811
     # type: (odoo_repl.methods.MethodProxy) -> t.Callable[..., t.Any]
     pass
 
 
 @overload  # noqa: F811
-def unwrap(obj):
+def unwrap(obj):  # noqa: F811
     # type: (T) -> T
     pass
 
