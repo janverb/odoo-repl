@@ -16,7 +16,10 @@ def fingerprint(record):
 
     def fieldprint(field):
         # type: (Field) -> t.Union[bool, t.Text]
-        value = getattr(record, field.name)
+        try:
+            value = record[field.name]
+        except Exception as err:
+            value = err
         if field.type == "selection":
             assert isinstance(value, (Text, bool))
             return value
