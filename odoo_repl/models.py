@@ -277,7 +277,7 @@ class ModelProxy(object):
     def __iter__(self):
         # type: () -> t.Iterator[BaseModel]
         assert self._real is not None
-        return iter(self._real.search([]))
+        return iter(self._real.search([], order="id asc"))
 
     @property
     def fields_(self):
