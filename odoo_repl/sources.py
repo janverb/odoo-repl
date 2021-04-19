@@ -4,7 +4,6 @@ import collections
 import inspect
 import linecache
 import os
-import platform
 import re
 
 import odoo_repl
@@ -95,11 +94,10 @@ def format_source(source):
     # type: (Source) -> t.Text
     module, fname, lnum = source
     if config.clickable_filenames:
-        # TODO: is including the hostname desirable?
-        # GNOME doesn't seem to support remote file:// URIs anyway, and if we
-        # somehow use the wrong hostname it'll mess things up.
-        uri = "file://{hostname}{fname}".format(fname=fname, hostname=platform.node())
-        fname = color.linkify(fname, uri)
+        # This can also be written as file://{hostname}/{fname}.
+        # But specifying the hostname is not terribly useful, and it breaks
+        # some things (e.g. curl, though curling a local file is silly anyway.)
+        fname = color.linkify(fname, "file://" + fname)
     if lnum is not None:
         return "{}: {}:{}".format(color.module(module), fname, lnum)
     else:
