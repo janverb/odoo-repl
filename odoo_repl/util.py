@@ -203,15 +203,12 @@ def get_base_url():
     # type: () -> t.Text
     global _base_url
     if not _base_url:
-        base_url = env["ir.config_parameter"].get_param("web.base.url")
-        if not base_url or "localhost" in base_url:
-            port = (
-                odoo.tools.config.get("xmlrpc_port")
-                or odoo.tools.config.get("http_port")
-                or "8069"
-            )
-            base_url = "http://localhost:{}".format(port)
-        _base_url = base_url
+        port = (
+            odoo.tools.config.get("xmlrpc_port")
+            or odoo.tools.config.get("http_port")
+            or "8069"
+        )
+        _base_url = "http://localhost:{}".format(port)
     return _base_url  # type: ignore
 
 
