@@ -171,7 +171,10 @@ def _find_decorators(method):
 def _func_signature(func):
     # type: (t.Callable[..., t.Any]) -> t.Text
     # pylint: disable=deprecated-method
-    if PY3:
-        return str(inspect.signature(func))
-    else:
-        return inspect.formatargspec(*inspect.getargspec(func))
+    try:
+        if PY3:
+            return str(inspect.signature(func))
+        else:
+            return inspect.formatargspec(*inspect.getargspec(func))
+    except (TypeError, ValueError):
+        return "(...)"
