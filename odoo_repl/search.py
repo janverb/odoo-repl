@@ -75,6 +75,10 @@ def _parse_search_query(
     field_vals,  # type: t.Mapping[str, object]
 ):
     # type: (...) -> t.List[t.Tuple[str, str, object]]
+
+    if not field_vals and len(args) == 1 and isinstance(args[0], Text):
+        return [("display_name", "ilike", args[0])]
+
     clauses = []
     state = "OUT"
     curr = None  # type: t.Optional[t.List[t.Any]]
