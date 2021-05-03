@@ -49,6 +49,8 @@ def search(
     order = field_vals.pop("order", "id")  # type: t.Optional[t.Text]
     count = field_vals.pop("count", False)  # type: bool
     shuf = field_vals.pop("shuf", None)  # type: t.Optional[int]
+    if not field_vals.pop("active_test", True):
+        model = model.with_context(active_test=False)
     if shuf and not (args or field_vals or offset or limit or count):
         # Doing a search seeds the cache with IDs, which tanks performance
         # Odoo will compute fields on many records at once even though you
