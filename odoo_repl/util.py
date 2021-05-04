@@ -33,9 +33,9 @@ def module(cls):
 
 
 if MYPY:
-    _XmlId = t.NamedTuple("XmlId", [("module", t.Text), ("name", t.Text)])
+    _XmlId = t.NamedTuple("_XmlId", [("module", t.Text), ("name", t.Text)])
 else:
-    _XmlId = collections.namedtuple("XmlId", ("module", "name"))
+    _XmlId = collections.namedtuple("_XmlId", ("module", "name"))
 
 
 class XmlId(_XmlId):

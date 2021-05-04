@@ -48,10 +48,10 @@ RECORD_TAGS = [
 
 if MYPY:
     _Source = t.NamedTuple(
-        "Source", [("module", t.Text), ("fname", t.Text), ("lnum", t.Optional[int])]
+        "_Source", [("module", t.Text), ("fname", t.Text), ("lnum", t.Optional[int])]
     )
 else:
-    _Source = collections.namedtuple("Source", ("module", "fname", "lnum"))
+    _Source = collections.namedtuple("_Source", ("module", "fname", "lnum"))
 
 
 class Source(_Source):
@@ -223,10 +223,10 @@ if MYPY:
     from lxml.etree import _ElementTree
 
     _RecordDef = t.NamedTuple(
-        "Employee", [("module", t.Text), ("fname", t.Text), ("elem", _ElementTree)]
+        "_RecordDef", [("module", t.Text), ("fname", t.Text), ("elem", _ElementTree)]
     )
 else:
-    _RecordDef = collections.namedtuple("RecordDef", ("module", "fname", "elem"))
+    _RecordDef = collections.namedtuple("_RecordDef", ("module", "fname", "elem"))
 
 
 class RecordDef(_RecordDef):
