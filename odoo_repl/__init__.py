@@ -5,7 +5,6 @@
 # - don't treat mixins as base
 # - things like constrainers as attributes on field(proxy)
 # - unify .source_() and .edit_() more so you can e.g. do .source_(-1)
-# - show .search in field_repr/as attr on FieldProxy
 # - put shuf_() on BaseModel
 # - toggle to start pdb on log message (error/warning/specific message)
 # - grep_ on XML records, for completeness

@@ -79,7 +79,7 @@ class FieldProxy(object):
         return fzf.fzf_field(self._env[self._real.model_name], self._real.name)
 
     def _make_method_proxy_(self, func):
-        # type: (object) ->  object
+        # type: (object) -> object
         if not callable(func):
             return func
         name = getattr(func, "__name__", False)
@@ -99,6 +99,20 @@ class FieldProxy(object):
     def compute(self):
         # type: () -> object
         return self._make_method_proxy_(_find_computer(self._real, self._env))
+
+    @property
+    def search(self):
+        # type: () -> object
+        return self._make_method_proxy_(
+            _find_field_func(self._real, "search", self._env)
+        )
+
+    @property
+    def inverse(self):
+        # type: () -> object
+        return self._make_method_proxy_(
+            _find_field_func(self._real, "inverse", self._env)
+        )
 
     @property
     def default(self):
@@ -186,6 +200,14 @@ def field_repr(field, env=None):
         if func:
             parts.append("Computed by {}".format(_format_func(func)))
 
+    search = _find_field_func(field, "search", env)
+    if search:
+        parts.append("Searched by {}".format(_format_func(search)))
+
+    inverse_func = _find_field_func(field, "inverse", env)
+    if inverse_func:
+        parts.append("Written by {}".format(_format_func(inverse_func)))
+
     for inverse in _find_inverse_names(field, env):
         parts.append("Inverts {}".format(color.field(inverse)))
 
@@ -239,15 +261,23 @@ def _find_field_attrs(field):
     ]
 
 
+def _find_field_func(field, name, env):
+    # type: (Field, t.Text, odoo.api.Environment) -> object
+    func = getattr(field, name, None)
+    if func is None:
+        return None
+    func = getattr(func, "__func__", func)
+    if isinstance(func, Text):
+        func = getattr(env[field.model_name], func)
+    return func
+
+
 def _find_computer(field, env):
     # type: (Field, odoo.api.Environment) -> object
-    if field.compute is not None:
-        func = field.compute
-        func = getattr(func, "__func__", func)
-        if isinstance(func, Text):
-            func = getattr(env[field.model_name], func)
+    func = _find_field_func(field, "compute", env)
+    if func is not None:
         return func
-    elif type(getattr(field, "column", None)).__name__ == "function":
+    if type(getattr(field, "column", None)).__name__ == "function":
         return field.column._fnct
     return None
 
