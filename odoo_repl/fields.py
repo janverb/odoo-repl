@@ -384,12 +384,14 @@ def _find_inverse_names(field, env):
 def _format_selection_values(field, model):
     # type: (odoo.fields.Selection[t.Any], BaseModel) -> t.Text
     if field.related:
-        field = cast(
-            "odoo.fields.Selection[t.Any]",
-            model.env[model._fields[field.related[0]].comodel_name]._fields[
-                field.related[1]
-            ],
-        )
+        related = field.related
+        while len(related) > 1:
+            model = model.env[model._fields[related[0]].comodel_name]
+            related = related[1:]
+        target = model._fields[related[0]]
+        if not isinstance(target, odoo.fields.Selection):
+            return "???"
+        field = target
     if isinstance(field.selection, Text):
         return u"Values computed by {}".format(color.method(field.selection))
     elif callable(field.selection):
