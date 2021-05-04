@@ -47,6 +47,7 @@ class BaseModel:
     _onchange_methods: Dict[str, List[types.FunctionType]]
     _inherit: Union[str, Sequence[str]]
     _inherits: Dict[Text, Text]
+    _rec_name: Optional[Text]
     env: Environment
     # _ids is normally a tuple, but base_suspend_security turns it into a list
     # on res.users

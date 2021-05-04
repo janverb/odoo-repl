@@ -62,7 +62,7 @@ def search(
         all_ids = util.sql(model.env, query)
         shuf = min(shuf, len(all_ids))
         return model.browse(random.sample(all_ids, shuf))
-    clauses = _parse_search_query(args, field_vals)
+    clauses = _parse_search_query(args, field_vals, model)
     result = model.search(clauses, offset=offset, limit=limit, order=order, count=count)
     if shuf:
         shuf = min(shuf, len(result))
@@ -73,11 +73,13 @@ def search(
 def _parse_search_query(
     args,  # type: t.Sequence[object]
     field_vals,  # type: t.Mapping[str, object]
+    model,  # type: BaseModel
 ):
     # type: (...) -> t.List[t.Tuple[str, str, object]]
 
-    if not field_vals and len(args) == 1 and isinstance(args[0], Text):
-        return [("display_name", "ilike", args[0])]
+    if len(args) == 1 and isinstance(args[0], Text):
+        name_field = model._rec_name or "display_name"
+        args = [name_field, "ilike", args[0]]
 
     clauses = []
     state = "OUT"
