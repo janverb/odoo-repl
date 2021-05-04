@@ -146,7 +146,11 @@ def create_namespace(
         "addons": addons.AddonBrowser(env),
     }  # type: t.Dict[str, t.Any]
     namespace.update(
-        {part: models.ModelProxy(env, part) for part in envproxy._base_parts()}
+        {
+            part: models.ModelProxy(env, part)
+            for part in envproxy._base_parts()
+            if not hasattr(builtins, part)
+        }
     )
 
     if not sources.xml_records:
@@ -200,9 +204,7 @@ def enable(
     # pdb.Pdb.displayhook = OPdb.displayhook
 
     for name, obj in to_install.items():
-        if not hasattr(builtins, name) and (
-            name not in target_ns or type(target_ns[name]) is type(obj)
-        ):
+        if name not in target_ns or type(target_ns[name]) is type(obj):
             target_ns[name] = obj
 
 
