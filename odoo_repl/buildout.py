@@ -5,7 +5,6 @@
 from __future__ import print_function
 
 import argparse
-import shlex
 import os
 import sys
 
@@ -18,29 +17,7 @@ def main(argv=sys.argv[1:]):
     # type: (t.Sequence[str]) -> int
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-d", "--database", type=str, default=None, help="Database name"
-    )
-    parser.add_argument(
         "-c", "--command", type=str, default=None, help="Initial command to execute"
-    )
-    parser.add_argument(
-        "--ipython",
-        action="store_true",
-        default=False,
-        help="Use IPython instead of the default REPL",
-    )
-    parser.add_argument(
-        "--interpreter",
-        type=str,
-        default=None,
-        help="Specify a different interpreter to use",
-    )
-    parser.add_argument(
-        "-a",
-        "--args",
-        type=str,
-        default=None,
-        help="Extra flags to pass to the interpreter",
     )
     parser.add_argument(
         "--no-interactive",
@@ -66,10 +43,6 @@ def main(argv=sys.argv[1:]):
     )
     args = parser.parse_args(argv)
 
-    if args.ipython and args.interpreter:
-        print("--ipython and --interpreter can't be used together")
-        return 1
-
     directory = os.path.abspath(args.directory)
 
     if not os.path.isdir(directory):
@@ -82,73 +55,57 @@ def main(argv=sys.argv[1:]):
         print("{!r} is not a buildout directory".format(directory))
         return 1
 
-    with open(executable) as f:
-        line = f.readline().strip()
-        assert line.startswith("#!")
-        interp = line[2:].strip()
-
-    if args.interpreter:
-        interp = args.interpreter
-
-    if os.environ.get("PYTHONSTARTUP"):
-        # $PYTHONSTARTUP isn't read when executing a file, but if you have one
-        # then you probably want to use it when running this script, so load
-        # it manually
-        cmd = """with open({!r}) as f:
-    exec(f.read(), globals(), locals())
-""".format(
-            os.environ["PYTHONSTARTUP"]
-        )
-    else:
-        cmd = ""
-
-    cmd += """import sys
+    cmd = """
+import sys
 sys.path.append({odoo_repl_path!r})
 import odoo_repl
 sys.path.pop()
 odoo_repl.parse_config(['-c', session.openerp_config_file] + {extra_args!r})
-session.open(db={database!r})
-odoo_repl.enable(session.env, __name__)
+session.open()
+_, ns = odoo_repl.create_namespace(session.env)
 """.format(
-        database=args.database,
         odoo_repl_path=os.path.dirname(
             os.path.dirname(odoo_repl.__file__)
         ),  # Might be fragile
         extra_args=args.extra_args,
     )
 
+    if os.environ.get("PYTHONSTARTUP"):
+        # $PYTHONSTARTUP isn't read when executing a file, but if you have one
+        # then you probably want to use it when running this script, so load
+        # it manually
+        cmd += """
+with open({!r}) as f:
+    exec(f.read(), ns)
+""".format(
+            os.environ["PYTHONSTARTUP"]
+        )
+
     if args.command is not None:
-        cmd += args.command
+        cmd += "exec({!r}, ns)\n".format(args.command)
 
     if args.run_tests:
-        cmd += """from odoo_repl import tests
-result = tests.run({database!r})
+        cmd += """
+from odoo_repl import tests
+result = tests.run()
 sys.exit(1 if result.errors or result.failures else 0)
-""".format(
-            database=args.database
-        )
+"""
 
     if args.with_server:
         cmd += """
-server = odoo.service.server.ThreadedServer(
-    odoo.service.wsgi_server.application
+server = odoo_repl.imports.odoo.service.server.ThreadedServer(
+    odoo_repl.imports.odoo.service.wsgi_server.application
 )
 server.start()
 """
 
-    # python_odoo has a -i flag for an interactive mode, but that's not great
-    # It doesn't enable Python 3's readline enhancements, for example
-    # So use Python's own -i flag instead
-    if args.ipython:
-        argv = [interp, "-m", "IPython", "--no-banner"]
-    else:
-        argv = [interp]
     if not args.no_interactive and not args.run_tests:
-        argv.append("-i")
-    if args.args:
-        argv.extend(shlex.split(args.args))
-    argv.extend(["--", executable, "-c", cmd])
-    os.execvp(interp, argv)
+        cmd += """
+from IPython import start_ipython
+start_ipython(argv=[], user_ns=ns)
+"""
+
+    os.execvp(executable, [executable, "-c", cmd])
 
 
 if __name__ == "__main__":

@@ -73,7 +73,7 @@ def create_namespace(
         db_name = db or odoo.tools.config["db_name"]
         if not db_name:
             raise ValueError(
-                "Can't determine database name. Run with `-d dbname` "
+                "Can't determine database name. Run with `-- -d dbname` "
                 "or pass it as the first argument to odoo_repl.enable()."
             )
         cursor = odoo.sql_db.db_connect(db_name).cursor()
