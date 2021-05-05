@@ -7,12 +7,12 @@ Examples:
 >>> grep_("test", i=True)  # grep -i
 >>> grep_("test", max_count=3)  # grep --max-count 3
 
-Because grep takes up a lot of horizontal space to display filenames,
-this method defaults to rg (ripgrep), ag (the silver searcher) or ack,
+Because grep takes up a lot of horizontal space to display filenames
+this method defaults to rg (ripgrep), ag (the silver searcher), or ack,
 if they're available. grep is used otherwise.
 
 ripgrep's flags are most similar to grep's if you're looking for
-something familiar.
+something familiar. It's also the fastest out of the three.
 
 Set the $ODOO_REPL_GREP environment variable to override the command.
 You can use flags in it.
@@ -53,11 +53,19 @@ def build_grep_argv(args, kwargs, recursive=False):
     if argv[0] == "grep" and config.color:
         argv.append("--color=auto")
     for key, value in kwargs.items():
+        if value is False:
+            # Unlikely
+            continue
         flag = "-" + key if len(key) == 1 else "--" + key.replace("_", "-")
         argv.append(flag)
         if value is not True:
             argv.append(str(value))
+    # TODO: it would be nice to allow grep_("-e foo -e bar")
+    # but it's unclear how to do that without sometimes mangling normal queries
     argv.extend(map(str, args))
+    # TODO: If the search query starts with a "-" we're in trouble
+    # (easiest workaround is to use -e)
+    # (hasn't come up yet organically, may be rare in Odoo)
     argv.append("--")
     if recursive and argv[0] == "grep":
         argv[1:1] = ["-r", "--exclude-dir=.git"]
