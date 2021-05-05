@@ -129,7 +129,7 @@ def create_namespace(
 
     def open_():
         # type: () -> None
-        subprocess.Popen(["xdg-open", util.generate_url()])
+        util.open_browser(util.generate_url())
 
     namespace = {
         "self": env.user,

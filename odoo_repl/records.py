@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import random
-import subprocess
 import sys
 
 import odoo_repl
@@ -215,8 +214,10 @@ def source_(record, location=None, context=False):
 @util.patch(BaseModel)
 def open_(self):
     # type: (BaseModel) -> None
+    # TODO: what if self is empty? open tree view?
+    # TODO: should opening too many give an error or maybe a warning?
     for record in self[:10]:
-        subprocess.Popen(["xdg-open", util.link_for_record(record)])
+        util.open_browser(util.link_for_record(record))
 
 
 @util.patch(BaseModel)

@@ -7,6 +7,7 @@ import contextlib
 import itertools
 import keyword
 import string
+import subprocess
 
 import odoo_repl
 
@@ -223,6 +224,12 @@ def generate_url(**params):
 def link_for_record(obj):
     # type: (BaseModel) -> t.Text
     return generate_url(model=obj._name, id=obj.id)
+
+
+def open_browser(url):
+    # type: (t.Text) -> None
+    # TODO: fallback for xdg-open? Better error message?
+    subprocess.Popen(["xdg-open", url])
 
 
 def is_record(obj):

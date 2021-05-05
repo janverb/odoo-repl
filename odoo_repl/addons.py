@@ -42,6 +42,12 @@ class AddonBrowser(object):
         for name in util.sql(self._env, "SELECT name FROM ir_module_module"):
             yield Addon(self._env, name)
 
+    def open_(self):
+        # type: () -> None
+        util.open_browser(
+            util.generate_url(action=self._env.ref("base.open_module_tree").id)
+        )
+
 
 class Addon(object):
     def __init__(self, env, module):

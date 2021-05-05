@@ -12,7 +12,7 @@ from odoo_repl import gitsources
 from odoo_repl import methods
 from odoo_repl import sources
 from odoo_repl import util
-from odoo_repl.imports import t, odoo, Field, BaseModel, PY3, Text, cast
+from odoo_repl.imports import t, odoo, Field, BaseModel, PY3, Text
 
 
 class FieldProxy(object):
