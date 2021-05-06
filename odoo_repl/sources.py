@@ -70,7 +70,8 @@ class Source(_Source):
 def getsourcefile(thing):
     # type: (t.Any) -> t.Text
     try:
-        return inspect.getsourcefile(thing) or "???"
+        path = inspect.getsourcefile(thing)
+        return os.path.realpath(path) if path else "???"
     except ValueError:
         return "???"
 
@@ -257,6 +258,7 @@ def populate_xml_records(modules):
         manifest = odoo.modules.module.load_information_from_description_file(
             module, mod_path=path
         )
+        path = os.path.realpath(path)
         data_files = list(manifest.get("data", ()))
         if demo:
             data_files.extend(manifest.get("demo", ()))

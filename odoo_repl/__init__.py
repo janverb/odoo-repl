@@ -112,7 +112,7 @@ def create_namespace(
             if mod != "base"
         ]
         paths.append(os.path.dirname(odoo.__file__))
-        argv.extend(filter(None, paths))
+        argv.extend(os.path.realpath(path) for path in paths if path)
         subprocess.Popen(argv).wait()
 
     def translate(text):
