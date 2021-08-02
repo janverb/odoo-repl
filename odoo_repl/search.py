@@ -77,7 +77,7 @@ def _parse_search_query(
 ):
     # type: (...) -> t.List[t.Tuple[str, str, object]]
 
-    if len(args) == 1 and isinstance(args[0], Text):
+    if len(args) == 1 and isinstance(args[0], Text + (int,)):
         name_field = model._rec_name or "display_name"
         args = [name_field, "ilike", args[0]]
 
