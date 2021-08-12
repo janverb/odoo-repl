@@ -42,7 +42,7 @@ except ImportError:
         # type: (object, object) -> object
         return val
 
-    def overload(func):
+    def overload(func):  # type: ignore
         # type: (object) -> object
         return func
 
