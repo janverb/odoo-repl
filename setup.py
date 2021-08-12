@@ -10,7 +10,7 @@ setuptools.setup(
     name="odoo-repl",
     version="0.0.3",
     author="Jan Verbeek",
-    author_email="jverbeek@therp.nl",
+    author_email="jan.verbeek@posteo.nl",
     description="Enhanced interactive Odoo shell",
     url="https://github.com/janverb/odoo-repl",
     packages=setuptools.find_packages(),
