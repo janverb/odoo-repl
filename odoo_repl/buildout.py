@@ -27,7 +27,7 @@ def main(argv=sys.argv[1:]):
     parser.add_argument(
         "--run-tests",
         action="store_true",
-        help="Run tests, then exit",
+        help="Run odoo-repl's own tests, then exit",
     )
     parser.add_argument(
         "-s",
